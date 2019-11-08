@@ -1,0 +1,37 @@
+buildscript {
+	ext {
+		baseUrl = "http://repo.hatiolab.com/nexus/content";
+		springBootVersion = '1.4.4.RELEASE'
+	}
+	repositories {
+		maven {
+			url baseUrl + '/groups/elidom-repository/'
+		}
+	}
+	dependencies {
+		classpath("org.springframework.build.gradle:propdeps-plugin:0.0.7")
+	}
+}
+
+apply from : 'anythings.gradle'
+
+jar {
+   from('src/main/java') {
+      include '/**/*.sql'
+   }
+
+	manifest {
+		attributes 'Implementation-Title': 'Operato Logis GTP Base',
+				   'Implementation-Version': version
+	}
+}
+
+repositories {
+	maven {
+		url baseUrl + '/groups/elidom-repository/'
+	}
+}
+
+dependencies {
+	compile project(':anythings-logis-base')	
+}
