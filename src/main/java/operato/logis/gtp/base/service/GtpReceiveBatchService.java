@@ -75,11 +75,6 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 		// 2. WMS IF 테이블에서 수신 대상 데이터 확인
 		List<BatchReceiptItem> receiptItems = this.getWmfIfToReceiptItems(receipt);
 		
-		// 2.1 수신 대상 데이터가 없으면 리턴 
-		if(ValueUtil.isEmpty(receiptItems)) {
-			throw new ElidomRuntimeException("수신할 주문 정보가 없습니다.");
-		}
-				
 		// 3 수신 아이템 데이터 생성 
 		for(BatchReceiptItem item : receiptItems) {
 			item.setBatchId(LogisBaseUtil.newReceiptJobBatchId(receipt.getDomainId()));
