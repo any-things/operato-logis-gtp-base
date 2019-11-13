@@ -17,7 +17,7 @@ import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.Order;
 import xyz.anythings.base.entity.OrderPreprocess;
 import xyz.anythings.base.event.main.BatchReceiveEvent;
-import xyz.anythings.base.query.store.BatchQueryStore;
+import operato.logis.gtp.base.query.store.GtpQueryStore;
 import xyz.anythings.base.service.util.BatchJobConfigUtil;
 import xyz.anythings.base.util.LogisBaseUtil;
 import xyz.anythings.base.util.LogisEntityUtil;
@@ -42,7 +42,7 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 	 * 배치 관련 쿼리 스토어 
 	 */
 	@Autowired
-	private BatchQueryStore batchQueryStore;
+	private GtpQueryStore batchQueryStore;
 
 	/**
 	 * 주문 정보 수신을 위한 수신 서머리 정보 조회
@@ -52,7 +52,9 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 	@EventListener(classes = BatchReceiveEvent.class, condition = "#event.eventType == 10 and #event.eventStep == 1 and (#event.jobType == 'DAS' or #event.jobType == 'RTN')")
 	public void handleReadyToReceive(BatchReceiveEvent event) { 
 		BatchReceipt receipt = event.getReceiptData();
-		receipt = this.createReadyToReceiveData(receipt);
+		String jobType = event.getJobType();
+		
+		receipt = this.createReadyToReceiveData(receipt,jobType);
 		event.setReceiptData(receipt);
 	}
 	
@@ -67,9 +69,10 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 	 * @param params
 	 * @return
 	 */
-	private BatchReceipt createReadyToReceiveData(BatchReceipt receipt, Object ... params) {
-		// 1. 대기 상태 이거나 진행 중인 수신이 있는지 확인 
-		BatchReceipt runBatchReceipt = this.checkRunningOrderReceipt(receipt);
+	private BatchReceipt createReadyToReceiveData(BatchReceipt receipt, String jobType,Object ... params) {
+		// 1. 대기 상태 이거나 진행 중인 수신이 있는지 확인
+		
+		BatchReceipt runBatchReceipt = this.checkRunningOrderReceipt(receipt,jobType);
 		if(runBatchReceipt != null) return runBatchReceipt;
 		
 		// 2. WMS IF 테이블에서 수신 대상 데이터 확인
@@ -96,6 +99,7 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 	private List<BatchReceiptItem> getWmfIfToReceiptItems(BatchReceipt receipt) {
 		Map<String,Object> params = ValueUtil.newMap("domainId,comCd,areaCd,stageCd,jobDate",
 				receipt.getDomainId(), receipt.getComCd(), receipt.getAreaCd(), receipt.getStageCd(), receipt.getJobDate());
+		
 		return this.queryManager.selectListBySql(this.batchQueryStore.getWmsIfToReceiptDataQuery(), params, BatchReceiptItem.class, 0, 0);
 	}
 	
@@ -105,11 +109,11 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 	 * @param domainId
 	 * @return
 	 */
-	private BatchReceipt checkRunningOrderReceipt(BatchReceipt receipt) {
-		Map<String,Object> paramMap = ValueUtil.newMap("domainId,comCd,areaCd,stageCd,jobDate,status", 
+	private BatchReceipt checkRunningOrderReceipt(BatchReceipt receipt,String jobType) {
+		Map<String,Object> paramMap = ValueUtil.newMap("domainId,comCd,areaCd,stageCd,jobDate,status,jobType", 
 				receipt.getDomainId(), receipt.getComCd(), receipt.getAreaCd(), receipt.getStageCd(), receipt.getJobDate(),
-				ValueUtil.newStringList(LogisConstants.COMMON_STATUS_WAIT, LogisConstants.COMMON_STATUS_RUNNING));
-		
+				ValueUtil.newStringList(LogisConstants.COMMON_STATUS_WAIT, LogisConstants.COMMON_STATUS_RUNNING),jobType);
+		 
 		BatchReceipt receiptData = 
 				this.queryManager.selectBySql(this.batchQueryStore.getBatchReceiptOrderTypeStatusQuery(), paramMap, BatchReceipt.class);
 		
@@ -131,12 +135,13 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 	public void handleStartToReceive(BatchReceiveEvent event) {
 		BatchReceipt receipt = event.getReceiptData();
 		List<BatchReceiptItem> items = receipt.getItems();
-		
+		 
 		for(BatchReceiptItem item : items) {
 			if(ValueUtil.isEqualIgnoreCase(LogisConstants.JOB_TYPE_DAS, item.getJobType()) || ValueUtil.isEqualIgnoreCase(LogisConstants.JOB_TYPE_RTN, item.getJobType())) {
 				this.startToReceiveData(receipt, item);
 			}
 		}
+		 
 	}
 	
 	/*@Async
@@ -158,10 +163,7 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 	 * @param params
 	 * @return
 	 */
-	private BatchReceipt startToReceiveData(BatchReceipt receipt, BatchReceiptItem item, Object ... params) {
-		// 1. 수신 시작 : 상태 업데이트 - 진행중 
-		receipt.updateStatusImmediately(LogisConstants.COMMON_STATUS_RUNNING);
-		
+	private BatchReceipt startToReceiveData(BatchReceipt receipt, BatchReceiptItem item, Object ... params) {		
 		// TODO : 데이터 복사 방식 / 컬럼 설정에서 가져오기 
 		String[] sourceFields = {"WMS_BATCH_NO", "WCS_BATCH_NO", "JOB_DATE", "JOB_SEQ", "JOB_TYPE", "ORDER_DATE", "ORDER_NO", "ORDER_LINE_NO", "ORDER_DETAIL_ID", "CUST_ORDER_NO", "CUST_ORDER_LINE_NO", "COM_CD", "AREA_CD", "STAGE_CD", "EQUIP_TYPE", "EQUIP_CD", "EQUIP_NM", "SUB_EQUIP_CD", "SHOP_CD", "SHOP_NM", "SKU_CD", "SKU_BARCD", "SKU_NM", "BOX_TYPE_CD", "BOX_IN_QTY", "ORDER_QTY", "PICKED_QTY", "BOXED_QTY", "CANCEL_QTY", "BOX_ID", "INVOICE_ID", "ORDER_TYPE", "CLASS_CD", "PACK_TYPE", "VEHICLE_NO", "LOT_NO", "FROM_ZONE_CD", "FROM_CELL_CD", "TO_ZONE_CD", "TO_CELL_CD"};
 		String[] targetFields = {"WMS_BATCH_NO", "WCS_BATCH_NO", "JOB_DATE", "JOB_SEQ", "JOB_TYPE", "ORDER_DATE", "ORDER_NO", "ORDER_LINE_NO", "ORDER_DETAIL_ID", "CUST_ORDER_NO", "CUST_ORDER_LINE_NO", "COM_CD", "AREA_CD", "STAGE_CD", "EQUIP_TYPE", "EQUIP_CD", "EQUIP_NM", "SUB_EQUIP_CD", "SHOP_CD", "SHOP_NM", "SKU_CD", "SKU_BARCD", "SKU_NM", "BOX_TYPE_CD", "BOX_IN_QTY", "ORDER_QTY", "PICKED_QTY", "BOXED_QTY", "CANCEL_QTY", "BOX_ID", "INVOICE_ID", "ORDER_TYPE", "CLASS_CD", "PACK_TYPE", "VEHICLE_NO", "LOT_NO", "FROM_ZONE_CD", "FROM_CELL_CD", "TO_ZONE_CD", "TO_CELL_CD"};
@@ -176,14 +178,11 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 				return receipt;
 			}
 						
-			// 3. 작업 차수  
-			++jobSeq;
-			
 			// 4. BatchReceiptItem 상태 업데이트  - 진행 중 
 			item.updateStatusImmediately(LogisConstants.COMMON_STATUS_RUNNING, null);
 			
 			// 5. JobBatch 생성 
-			JobBatch batch = JobBatch.createJobBatch(item.getBatchId(), jobSeq, receipt, item);
+			JobBatch batch = JobBatch.createJobBatch(item.getBatchId(), item.getJobSeq(), receipt, item);
 			
 			// 6. 데이터 복사  
 			this.cloneData(item.getBatchId(), jobSeq, "wms_if_orders", sourceFields, targetFields, fieldNames, item.getComCd(), item.getAreaCd(), item.getStageCd(), item.getWmsBatchNo(), LogisConstants.N_CAP_STRING);
@@ -194,9 +193,12 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 			// 8. batchReceiptItem 상태 업데이트 
 			item.updateStatusImmediately(LogisConstants.COMMON_STATUS_FINISHED, null);
 			
+			//9.Wms_if_order 상태 업데이트
+			this.updateWmfIfToReceiptItems(item);
+			
 		} catch(Exception e) {
 			exceptionOccurred = true;
-			String errMsg = e.getCause().getMessage();
+			String errMsg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
 			errMsg = errMsg.length() > 400 ? errMsg.substring(0,400) : errMsg;
 			item.updateStatusImmediately(LogisConstants.COMMON_STATUS_ERROR, errMsg);
 		}
@@ -362,5 +364,19 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 		// 2. 삭제 실행
 		return this.queryManager.deleteList(OrderPreprocess.class, condition);
 	}
+	
+	/**
+	 * WMS IF 테이블의 수신완료 데이터 상태 변경
+	 * 
+	 * @param receipt
+	 * @return
+	 */
+	private void updateWmfIfToReceiptItems(BatchReceiptItem item) {
+		Map<String,Object> params = ValueUtil.newMap("wcsBatchNo,wmsBatchNo,comCd,areaCd,stageCd,jobType,jobSeq",
+				item.getWcsBatchNo(),item.getWmsBatchNo(),item.getComCd(), item.getAreaCd(), item.getStageCd(),item.getJobType(), item.getJobSeq());
 
+		this.queryManager.executeBySql(this.batchQueryStore.getWmsIfToReceiptUpdateQuery(), params);
+	}
+	
+	
 }
