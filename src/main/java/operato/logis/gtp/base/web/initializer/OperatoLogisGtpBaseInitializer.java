@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 
 import operato.logis.gtp.base.config.ModuleProperties;
 import operato.logis.gtp.base.query.store.GtpQueryStore;
-import xyz.anythings.base.query.store.BatchQueryStore;
 import xyz.elidom.orm.IQueryManager;
 import xyz.elidom.sys.config.ModuleConfigSet;
 import xyz.elidom.sys.system.service.api.IEntityFieldCache;
@@ -63,6 +62,7 @@ public class OperatoLogisGtpBaseInitializer {
 		this.configSet.addConfig(this.module.getName(), this.module);
 		this.scanServices();
 		this.initQueryStores();
+		
 		this.logger.info("Operato Logistics GTP Base module initialized!");
     }
 	

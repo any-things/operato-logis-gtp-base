@@ -2,7 +2,7 @@ package operato.logis.gtp.base.query.store;
 
 import org.springframework.stereotype.Component;
 
-import xyz.anythings.base.query.store.AbstractQueryStore;
+import xyz.anythings.sys.service.AbstractQueryStore;
 import xyz.elidom.sys.SysConstants;
 
 /**

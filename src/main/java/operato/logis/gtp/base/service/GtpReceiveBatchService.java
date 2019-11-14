@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import operato.logis.gtp.base.query.store.GtpQueryStore;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.BatchReceipt;
 import xyz.anythings.base.entity.BatchReceiptItem;
@@ -17,11 +18,10 @@ import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.Order;
 import xyz.anythings.base.entity.OrderPreprocess;
 import xyz.anythings.base.event.main.BatchReceiveEvent;
-import operato.logis.gtp.base.query.store.GtpQueryStore;
 import xyz.anythings.base.service.util.BatchJobConfigUtil;
 import xyz.anythings.base.util.LogisBaseUtil;
-import xyz.anythings.base.util.LogisEntityUtil;
 import xyz.anythings.sys.service.AbstractQueryService;
+import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.anythings.sys.util.AnyValueUtil;
 import xyz.elidom.dbist.dml.Query;
@@ -119,7 +119,7 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 		
 		// 대기 중 또는 진행 중인 수신 정보 리턴 
 		if(receiptData != null) {
-			receiptData.setItems(LogisEntityUtil.searchDetails(receipt.getDomainId(), BatchReceiptItem.class, "batchReceiptId", receiptData.getId()));
+			receiptData.setItems(AnyEntityUtil.searchDetails(receipt.getDomainId(), BatchReceiptItem.class, "batchReceiptId", receiptData.getId()));
 			return receiptData;
 		}
 		
@@ -308,7 +308,7 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 		batch.updateStatus(JobBatch.STATUS_CANCEL);
 		
 		// 2. 주문 조회 
-		List<Order> orderList = LogisEntityUtil.searchEntitiesBy(batch.getDomainId(), false, Order.class, "id", "batchId", batch.getId());
+		List<Order> orderList = AnyEntityUtil.searchEntitiesBy(batch.getDomainId(), false, Order.class, "id", "batchId", batch.getId());
 		
 		// 3. 취소 상태 , seq = 0 셋팅 
 		for(Order order : orderList) {

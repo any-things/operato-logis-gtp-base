@@ -11,13 +11,12 @@ import operato.logis.gtp.base.query.store.GtpQueryStore;
 import operato.logis.gtp.base.service.model.OrderGroup;
 import operato.logis.gtp.base.service.model.RackCell;
 import operato.logis.gtp.base.service.model.RtnPreprocessSummary;
-import xyz.anythings.base.entity.Cell;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.OrderPreprocess;
 import xyz.anythings.base.service.api.IPreprocessService;
 import xyz.anythings.sys.service.AbstractQueryService;
 import xyz.anythings.sys.util.AnyValueUtil;
-import xyz.elidom.dbist.dml.Query; 
+import xyz.elidom.dbist.dml.Query;
 import xyz.elidom.sys.util.ValueUtil;
 
 @Component("rtnPreprocessService")
@@ -34,8 +33,6 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 
 	@Override
 	public Map<String, ?> buildPreprocessSet(JobBatch batch, Query query) {
-		// TODO Auto-generated method stub
-		//String condition
 		
 		List<OrderPreprocess> preprocesses = this.queryManager.selectList(OrderPreprocess.class, query);
 		if(ValueUtil.isEmpty(preprocesses)) {
@@ -120,7 +117,7 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 	 *
 	 * @param batch
 	 * @return
-//	 */
+	 */
 	public List<RackCell> regionAssignmentStatus(JobBatch batch) {
 		String sql = queryStore.getRtnRegionCellStatusQuery();
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,jobType,stageCd,activeFlag", batch.getDomainId(), batch.getId(), batch.getJobType(),batch.getStageCd(), 1);
@@ -133,7 +130,6 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 	 * @param batch 
 	 * @return
 	 */
-	@SuppressWarnings({ "rawtypes", "unchecked" })
 	public List<RtnPreprocessSummary> preprocessSummaryByRegions(JobBatch batch) {
 		String sql = queryStore.getRtnPreprocessSummaryQuery();
 		Map<String, Object> params = ValueUtil.newMap("batchId", batch.getId());
@@ -163,4 +159,5 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 		String sql = queryStore.getRtnBatchGroupPreprocessSummaryQuery();
 		return this.queryManager.selectBySql(sql, params, Map.class);
 	}
+
 }
