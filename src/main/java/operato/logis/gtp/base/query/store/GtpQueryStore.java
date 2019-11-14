@@ -6,7 +6,7 @@ import xyz.anythings.base.query.store.AbstractQueryStore;
 import xyz.elidom.sys.SysConstants;
 
 /**
- * 반품
+ * 반품 프로세스
  * 
  * @author shortstop
  */
@@ -45,8 +45,52 @@ public class GtpQueryStore extends AbstractQueryStore {
 	 */
 	public String getWmsIfToReceiptUpdateQuery() {
 		return this.getQueryByPath("batch/WmsIfToReceiptUpdate");
+	} 
+	
+	/**
+	 * 주문 데이터로 부터  주문 가공 쿼리
+	 *
+	 * @return
+	 */
+	public String getRtnGeneratePreprocessQuery(){
+		return this.getQueryByPath("rtn/rtnGeneratePreprocess");
+	}
+	
+	/**
+	 * 작업 배치 별 주문 그룹 리스트 가공 쿼리
+	 *
+	 * @return
+	 */
+	public String getOrderGroupListQuery() {
+		return this.getQueryByPath("rtn/orderGroupList");
 	}
 	
 	
+	/**
+	 * 작업 배치 별 주문 가공 정보에서 호기별로 상품 할당 상태를 조회 쿼리
+	 *
+	 * @return
+	 */
+	public String getRtnRegionCellStatusQuery() {
+		return this.getQueryByPath("rtn/rtnRegionCellStatus");
+	}
+	
+	/**
+	 * 작업 배치 별 호기별 물량 할당 요약 정보를 조회 쿼리
+	 *
+	 * @return
+	 */
+	public String getRtnPreprocessSummaryQuery() {
+		return this.getQueryByPath("rtn/rtnPreprocessSummary");
+	}
+	
+	/**
+	 *  작업 배치의 상품별 물량 할당 요약 정보 조회 쿼리
+	 *
+	 * @return
+	 */
+	public String getRtnBatchGroupPreprocessSummaryQuery() {
+		return this.getQueryByPath("rtn/rtnBatchGroupPreprocessSummary");
+	} 
 
 }

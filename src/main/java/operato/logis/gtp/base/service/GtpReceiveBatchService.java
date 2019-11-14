@@ -39,7 +39,7 @@ import xyz.elidom.util.ValueUtil;
 public class GtpReceiveBatchService extends AbstractQueryService {
 	
 	/**
-	 * 배치 관련 쿼리 스토어 
+	 * 반품 관련 쿼리 스토어 
 	 */
 	@Autowired
 	private GtpQueryStore batchQueryStore;
@@ -194,7 +194,7 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 			item.updateStatusImmediately(LogisConstants.COMMON_STATUS_FINISHED, null);
 			
 			//9.Wms_if_order 상태 업데이트
-			this.updateWmfIfToReceiptItems(item);
+			this.updateWmfIfToReceiptItems(item,receipt.getJobDate());
 			
 		} catch(Exception e) {
 			exceptionOccurred = true;
@@ -371,10 +371,10 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 	 * @param receipt
 	 * @return
 	 */
-	private void updateWmfIfToReceiptItems(BatchReceiptItem item) {
-		Map<String,Object> params = ValueUtil.newMap("wcsBatchNo,wmsBatchNo,comCd,areaCd,stageCd,jobType,jobSeq",
-				item.getWcsBatchNo(),item.getWmsBatchNo(),item.getComCd(), item.getAreaCd(), item.getStageCd(),item.getJobType(), item.getJobSeq());
-
+	private void updateWmfIfToReceiptItems(BatchReceiptItem item,String jobDate) {
+		Map<String,Object> params = ValueUtil.newMap("wcsBatchNo,wmsBatchNo,stageCd,jobSeq,jobDate",
+				item.getWcsBatchNo(),item.getWmsBatchNo(),item.getStageCd(),item.getJobSeq(),jobDate);
+ 
 		this.queryManager.executeBySql(this.batchQueryStore.getWmsIfToReceiptUpdateQuery(), params);
 	}
 	
