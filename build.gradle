@@ -33,5 +33,5 @@ repositories {
 }
 
 dependencies {
-	compile project(':anythings-logis-base')
+	compile project(':operato-gw-mqbase')
 }
