@@ -25,27 +25,29 @@ FROM   ( SELECT COUNT(1)                  AS TOTAL_SKUS ,
                         END) AS ASSIGNED_PCS
                FROM     ORDER_PREPROCESSES
                WHERE    DOMAIN_ID = :domainId
-               AND      BATCH_ID  = :batchId #if($classCd)
+               AND      BATCH_ID  = :batchId 
+               #if($classCd)
                AND
                         (
                                  'ALL' = :orderGroup OR CLASS_CD = :classCd
                         )
-                        #else
+               #else
                AND
                         (
                                  CLASS_CD IS NULL OR CLASS_CD = ''
                         )
-                        #end #if($rackCd)
+               #end 
+               #if($rackCd)
                AND
                         (
                                  'ALL' = :rackCd OR EQUIP_CD = :rackCd
                         )
-                        #else
+               #else
                AND
                         (
                                  EQUIP_CD IS NULL OR EQUIP_CD = ''
                         )
-                        #end
+               #end
                GROUP BY CELL_ASSGN_CD
                )
        )
