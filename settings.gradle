@@ -15,9 +15,10 @@ include 'api'
 include 'services:webservice'
 */
 
-include 'anythings-sys',':anythings-comm-rabbitmq','anythings-gw',':anythings-logis-base'
+include 'anythings-sys',':anythings-comm-rabbitmq','anythings-gw',':anythings-logis-base',':operato-gw-mqbase'
 
 project(':anythings-sys').projectDir = new File(settingsDir, '../anythings-sys')
 project(':anythings-comm-rabbitmq').projectDir = new File(settingsDir, '../anythings-comm-rabbitmq')
 project(':anythings-gw').projectDir = new File(settingsDir, '../anythings-gw')
 project(':anythings-logis-base').projectDir = new File(settingsDir, '../anythings-logis-base')
+project(':operato-gw-mqbase').projectDir = new File(settingsDir, '../operato-gw-mqbase')
