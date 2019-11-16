@@ -378,5 +378,4 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 		this.queryManager.executeBySql(this.batchQueryStore.getWmsIfToReceiptUpdateQuery(), params);
 	}
 	
-	
 }

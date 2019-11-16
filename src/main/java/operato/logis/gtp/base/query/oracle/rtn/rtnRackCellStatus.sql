@@ -26,7 +26,12 @@ FROM   (
 	            WHERE    LOC.DOMAIN_ID          = :domainId
 	            AND		 REG.STAGE_CD	 		= :stageCd     
 	            AND      REG.DOMAIN_ID          = LOC.DOMAIN_ID
-	            AND      LOC.ACTIVE_FLAG        = :activeFlag                         
+	            AND      LOC.ACTIVE_FLAG        = :activeFlag  
+	            
+        		#if($equipCds)
+				AND      REG.RACK_CD IN (:equipCds)  
+				#end                    
+				
 	            GROUP BY REG.RACK_CD,
 	                     REG.RACK_NM,
 	                     REG.RACK_TYPE

@@ -71,8 +71,8 @@ public class GtpQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getRtnRegionCellStatusQuery() {
-		return this.getQueryByPath("rtn/rtnRegionCellStatus");
+	public String getRtnRackCellStatusQuery() {
+		return this.getQueryByPath("rtn/rtnRackCellStatus");
 	}
 	
 	/**
@@ -92,5 +92,13 @@ public class GtpQueryStore extends AbstractQueryStore {
 	public String getRtnBatchGroupPreprocessSummaryQuery() {
 		return this.getQueryByPath("rtn/rtnBatchGroupPreprocessSummary");
 	} 
-
+	
+	/**
+	 *  작업 배치의 상품별 물량 할당 요약 정보 조회 쿼리
+	 *
+	 * @return
+	 */
+	public String getRtnResetRackCellQuery() {
+		return this.getQueryByPath("rtn/rtnResetRackCell");
+	} 
 }

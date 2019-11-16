@@ -1,10 +1,7 @@
 package operato.logis.gtp.base.service.model;
 
-public class RackCell {
-	/**
-	 * 슈트 번호
-	 */
-	private String chuteNo;
+public class RackCells {
+
 	/**
 	 * 호기 코드 
 	 */
@@ -16,7 +13,7 @@ public class RackCell {
 	/**
 	 * 호기 타입
 	 */
-	private String regionType;
+	private String rackType;
 	/**
 	 * 할당되지 않은 셀 개수 
 	 */
@@ -33,12 +30,13 @@ public class RackCell {
 	 * 할당된 개수 PCS 
 	 */
 	private Integer assignedPcs;
-	
+ 
 	/**
 	 * 기본 생성자 
 	 */
-	public RackCell() {
+	public RackCells() {
 	}
+	
 	
 	/**
 	 * 생성자
@@ -52,23 +50,14 @@ public class RackCell {
 	 * @param assignedSku
 	 * @param assignedPcs
 	 */
-	public RackCell(String chuteNo, String rackCd, String rackNm, String regionType, Integer remainCells, Integer assignedCells, Integer assignedSku, Integer assignedPcs) {
-		this.chuteNo = chuteNo;
+	public RackCells(String rackCd, String rackNm, String rackType, Integer remainCells, Integer assignedCells, Integer assignedSku, Integer assignedPcs) {
 		this.rackCd = rackCd;
 		this.rackNm = rackNm;
-		this.regionType = regionType;
+		this.rackType = rackType;
 		this.remainCells = remainCells;
 		this.assignedCells = assignedCells;
 		this.assignedSku = assignedSku;
 		this.assignedPcs = assignedPcs;
-	}
-	
-	public String getChuteNo() {
-		return chuteNo;
-	}
-
-	public void setChuteNo(String chuteNo) {
-		this.chuteNo = chuteNo;
 	}
 
 	public String getRackCd() {
@@ -87,12 +76,12 @@ public class RackCell {
 		this.rackNm = rackNm;
 	}
 	
-	public String getRegionType() {
-		return regionType;
+	public String getRackType() {
+		return rackType;
 	}
 
-	public void setRegionType(String regionType) {
-		this.regionType = regionType;
+	public void setRackType(String rackType) {
+		this.rackType = rackType;
 	}
 
 	public Integer getRemainCells() {
