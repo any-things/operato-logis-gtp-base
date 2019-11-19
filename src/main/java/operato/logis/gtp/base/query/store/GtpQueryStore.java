@@ -139,7 +139,14 @@ public class GtpQueryStore extends AbstractQueryStore {
 		return this.getQueryByPath("rtn/rtnPararellRackPreprocessClone");
 	} 
 	
-	
+	/**
+	 * 해당 배치의 주문 정보들의 호기
+	 *
+	 * @return
+	 */
+	public String getRtnBatchIdOfOrderUpdateQuery() {
+		return this.getQueryByPath("rtn/rtnBatchIdOfOrderUpdate");
+	} 
 	
 	
 }

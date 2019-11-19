@@ -7,8 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
- 
+import org.springframework.stereotype.Component; 
 import operato.logis.gtp.base.GtpBaseConstants;
 import operato.logis.gtp.base.query.store.GtpQueryStore;
 import operato.logis.gtp.base.service.model.OrderGroup; 
@@ -86,7 +85,7 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 			batchGroups.add(batch);
 			batch.setStatus(JobBatch.STATUS_READY);
 			this.queryManager.update(batch, "status");
-			//this.instructBatch(batch, null);
+			BeanUtil.get(RtnInstructionService.class).instructBatch(batch, null);
 
 		// 3. 일반 반품 유형이면
 		} else {
@@ -95,24 +94,18 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 				ValueUtil.newMap("domainId,batchId,batchGroupId", batch.getDomainId(), batch.getId(),batch.getBatchGroupId());
 			String sql = queryStore.getRtnPreprocessRackSummaryQuery();
 			List<JobBatch> summaryBatchGroups = this.queryManager.selectListBySql(sql, processParams, JobBatch.class, 0, 0);
-
+			
 			// 3-2. 작업 차수 생성
 			Integer jobBatchSeq = batch.getJobSeq();
 			if(ValueUtil.isEmpty(jobBatchSeq) || jobBatchSeq == 0) {
 				jobBatchSeq = this.queryManager.selectBySql("select nvl(max(job_batch_seq), 0) from tb_job_batch where domain_id = :domainId and batch_group_id = :batchGroupId ", processParams, Integer.class);
 				jobBatchSeq += 1;
 			}
+	
 			processParams.put("jobBatchSeq", jobBatchSeq);
-
-//			// 3-3. 호기별 작업 배치 데이터 생성
-//			for(int i = 0 ; i < summaryBatchGroups.size() ; i++) {
-//				JobBatch summaryBatch = summaryBatchGroups.get(i);
-//				batchGroups.add(this.createSubBatchBy(batch, summaryBatch, jobBatchSeq, params, i == 0));
-//			}
-
-			// 3-4. 주문 가공 완료 처리
+			// 3-3. 주문 가공 완료 처리
 			for(JobBatch subBatch : summaryBatchGroups) {
-				if(ValueUtil.isNotEmpty(subBatch.getEquipCd())) {
+				if(ValueUtil.isNotEmpty(subBatch.getEquipCd())) { 
 					subBatch.setId(batch.getId());
 					subBatch.setStageCd(batch.getStageCd());
 					subBatch.setDomainId(batch.getDomainId());
@@ -142,7 +135,6 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 		this.checkJobBatchesForReset(batch, batch.getId());
 		
 		//할당 정보 리셋 
-		
 		if(resetAll) {
 			this.generatePreprocess(batch);
 		}else {
@@ -472,184 +464,8 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 	}
 	
 	
-	/**
-	 * 작업 지시 전 처리 액션
-	 *
-	 * @param batch
-	 * @param rackList
-	 * @return
-	 */
-	protected boolean beforeInstructBatch(JobBatch batch, List<Rack> rackList) {
-		// 1. 배치 상태가 작업 지시 상태인지 체크
-		if(ValueUtil.isNotEqual(batch.getStatus(), JobBatch.STATUS_READY)) {
-			// 주문 가공 대기' 상태가 아닙니다
-			throw ThrowUtil.newValidationErrorWithNoLog(MessageUtil.getTerm("terms.text.is_not_wait_state", "JobBatch status is not WAIT"));
-		}
-
-		// 2. 무오더 반품이 아닌 경우
-		if(!batch.isRtn3Batch()) {
-			String equipCd = batch.getEquipCd();
-
-			// 3. 작업 배치에 할당되었는지 체크
-			if(ValueUtil.isEmpty(equipCd)) {
-				// 작업배치에 호기가 할당되지 않았습니다.
-				throw ThrowUtil.newValidationErrorWithNoLog(true, "MPS_A_NOT_ASSIGNED_TO", "terms.label.job_batch", "terms.menu.");
-			}
-
-			// 4. 작업 배치에 할당된 호기에 다른 배치가 진행 중인지 체크
-			Rack rack = Rack.findByRackCd(batch.getDomainId(), equipCd, true);
-			if(ValueUtil.isNotEmpty(rack.getBatchId())) {
-				// 호기에 다른 작업배치가 할당되어 있습니다
-				throw ThrowUtil.newValidationErrorWithNoLog(true, "MPS__ASSIGNED_ANOTHER_BATCH", ValueUtil.toList(batch.getEquipNm()));
-			}
-		}
-
-		return true;
-	}
 	
-	 
 	
-	/**
-	 * 작업 지시 처리 로직
-	 *
-	 * @param batch
-	 * @param List
-	 * @return
-	 */
-	protected int doInstructBatch(JobBatch batch, List<Rack> rackList) {
-		// 1. 무오더 반품 배치 작업 지시 처리
-		if(batch.isRtn3Batch()) {
-			return this.doInstructNoOrderBatch(batch);
-
-		// 2. 일반 반품 배치 작업 지시 처리
-		} else {
-			Rack rack = Rack.findByRackCd(batch.getDomainId(), batch.getEquipCd(), true);
-			return this.doInstructGeneralBatch(batch);
-		} 
-	}
-	
-	/**
-	 * 일반 호기 작업 배치에 대한 작업 지시
-	 *
-	 * @param batch
-	 * @return
-	 */
-	protected int doInstructGeneralBatch(JobBatch batch) {
-		
-		// 1. 조건 생성
-		Long domainId = batch.getDomainId();
-		Map<String, Object> params = ValueUtil.newMap("P_IN_DOMAIN_ID,P_IN_BATCH_ID", domainId, batch.getId());
-		// 2. 작업 지시 프로시져 콜
-		Map<?, ?> result = this.queryManager.callReturnProcedure("SP_RTN_INSTRUCT_JOB", params, Map.class);
-		// 3. 결과 파싱
-		int resCode = ((java.math.BigDecimal)result.get("P_OUT_RESULT_CODE")).toBigInteger().intValueExact();
-		String resMessage = ValueUtil.isNotEmpty(result.get("P_OUT_MESSAGE")) ? result.get("P_OUT_MESSAGE").toString() : SysConstants.EMPTY_STRING;
-		int createdCount = ((java.math.BigDecimal)result.get("P_OUT_CREATED_COUNT")).toBigInteger().intValueExact();
-
-		if(resCode == 0) {
-			if(ValueUtil.isNotEmpty(resMessage)) {
-				throw new ElidomRuntimeException(resMessage);
-			}
-		} else {
-			throw new ElidomRuntimeException(resMessage);
-		}
-
-		// 4. 배치 시작 액션 처리
-	//	this.getAssortService(batch).batchStartAction(batch);
-
-		// 5. 생성 개수
-		return createdCount;
-	}
-	
-	/**
-	 * 무오더 반품 배치 작업 지시
-	 *
-	 * @param batch
-	 * @return
-	 */
-	protected int doInstructNoOrderBatch(JobBatch batch) {
-		// 1. 호기 조회
-		Query query = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
-		query.addFilter("batchId", batch.getId());
-		OrderPreprocess process = this.queryManager.select(OrderPreprocess.class, query);
-		
-		String equipCd = process.getEquipCd();
-		
-		// 2. 작업 지시 처리
-		batch.setEquipCd(equipCd);
-		batch.setStatus(JobBatch.STATUS_RUNNING);
-		batch.setInstructedAt(new Date());
-		this.queryManager.update(batch, AnyConstants.ENTITY_FIELD_STATUS, "equipCd", "instructedAt");
-
-		// 3. 배치 시작 액션 처리
-//		this.getAssortService(batch).batchStartAction(batch);
-
-		// 4. 생성 개수
-		return 1;
-	}
-	
-	/**
-	 * 작업 배치를 여러 호기로 설정한 후에 설정한 가공의 호기별로 실제 작업 배치 생성
-	 *
-	 * @param mainBatch
-	 * @param summaryBatch
-	 * @param params
-	 * @param isFirst
-	 */
-	private JobBatch createSubBatchBy(JobBatch mainBatch, JobBatch summaryBatch, int jobBatchSeq, Map<String, Object> params, boolean isFirst) {
-//		Long domainId = mainBatch.getDomainId();
-//		String newBatchId = isFirst ? mainBatch.getId() : LogisBaseUtil.newJobBatchId(domainId);
-//		String Cd = summaryBatch.getCd();
-//		JobBatch retBatch = null;
-//
-//		if(isFirst) {
-//			// 첫번째 작업 배치 데이터는 기존 데이터에 호기 정보, 상태정보 update
-//			mainBatch.setCd(summaryBatch.getCd());
-//			mainBatch.setNm(summaryBatch.getNm());
-//			mainBatch.setJobBatchSeq(jobBatchSeq);
-//			this.queryManager.update(mainBatch, "Cd", "Nm", "jobBatchSeq");
-//			retBatch =  mainBatch;
-//
-//		} else {
-//			// 두번째 부터 기존 정보 복제 후 데이터 생성
-//			jobBatchSeq = ValueUtil.isEmpty(Cd) ? jobBatchSeq + 1 : jobBatchSeq;
-//			params.put("jobBatchSeq", jobBatchSeq);
-//			summaryBatch.setId(newBatchId);
-//			summaryBatch.setDomainId(domainId);
-//			summaryBatch.setDcCd(mainBatch.getDcCd());
-//			summaryBatch.setComCd(mainBatch.getComCd());
-//			summaryBatch.setJobType(mainBatch.getJobType());
-//			summaryBatch.setBatchGroupId(mainBatch.getBatchGroupId());
-//			summaryBatch.setJobDate(mainBatch.getJobDate());
-//			summaryBatch.setJobBatchSeq(jobBatchSeq);
-//			summaryBatch.setJobNo(mainBatch.getJobNo());
-//			summaryBatch.setJobId(mainBatch.getJobId());
-//			summaryBatch.setMpsOrderCnt(0);
-//			summaryBatch.setMpsTotalCnt(0);
-//			summaryBatch.setWmsOrderCnt(mainBatch.getWmsOrderCnt());
-//			summaryBatch.setWmsTotalCnt(mainBatch.getWmsTotalCnt());
-//			summaryBatch.setStatus(JobBatch.STATUS_WAIT);
-//			this.queryManager.insert(summaryBatch);
-//			retBatch =  summaryBatch;
-//		}
-//
-//		String updateQuery = "UPDATE TB_RTN_PREPROCESS SET BATCH_ID = :newBatchId, UPDATER_ID = :userId, UPDATED_AT = SYSDATE WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId ";
-//		if(ValueUtil.isEmpty(Cd)) {
-//			updateQuery += "AND (_CD IS NULL OR _CD = '')";
-//		} else {
-//			updateQuery += "AND _CD = :Cd";
-//		}
-//
-//		params.put("newBatchId", newBatchId);
-//		params.put("Cd", Cd);
-//		this.queryManager.executeBySql(updateQuery, params);
-//
-//		// 해당 배치의 주문 정보들의 호기, 작업 배치 ID 업데이트
-//		updateQuery = QueryStore.getRtnBatchIdOfOrderUpdateQuery(ValueUtil.isEmpty(Cd));
-//		this.queryManager.executeBySql(updateQuery, params);
-//		return retBatch;
-		return null;
-	}
 	
 	/**
 	 * 작업 서브 배치 별 주문 가공 완료 처리
@@ -669,10 +485,6 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 			if(ValueUtil.isNotEmpty(rackCells)) {
 				// 물량이 많은 상품순으로 작업 존 리스트를 왔다갔다 하면서 로케이션 지정을 자동으로 한다.
 				int count = this.assignCells(subBatch, rackCells, items);
-				// 처리가 되었다면 병렬일 경우에 대한 처리 - 직렬일 경우 SKIP
-				if(count > 0) {
-					//this.completePreprocessingPararellDataCopy(subBatch, params);
-				}
 			} else {
 				// 호기[" + subBatch.getCd() + "]를 사용할 수 없습니다.
 				throw ThrowUtil.newValidationErrorWithNoLog(true, "MPS_CANNOT_USE_", ValueUtil.toList(subBatch.getEquipCd()));
@@ -680,14 +492,13 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 		}
 	}
 
- 	@Override
 	public List<OrderPreprocess> searchPreprocessList(JobBatch batch) {
  		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		condition.addSelect("id","batchId","comCd","cellAssgnCd","cellAssgnNm","equipCd","equipNm","subEquipCd","skuQty","totalPcs");
 		condition.addFilter("batchId", batch.getId());
-		condition.addFilter(new Filter("equipCd", "is_not_null", SysConstants.EMPTY_STRING));
+		//condition.addFilter(new Filter("equipCd", "is_not_null", SysConstants.EMPTY_STRING));
+		condition.addFilter("equipCd", batch.getEquipCd());
 		
-		//condition.addOrder("orderCustQty", false);
 		condition.addOrder("totalPcs", false);
 		return this.queryManager.selectList(OrderPreprocess.class, condition);
 	}
@@ -718,7 +529,7 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 	 */
 	private int assignCells(JobBatch batch, List<RackCells> rackCells, List<OrderPreprocess> preprocesses) {
 
-		// 1. SKU별 로케이션을 호기 리스트 범위 내에 할당
+		// 1. SKU별 로케이션을 호기 리스트 범위 내에 할당  
 		List<String> rackCdList = AnyValueUtil.filterValueListBy(rackCells, "rackCd");
 		int result = 0;
 
@@ -756,7 +567,7 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 	}
  
 	public int assignPreprocesses(JobBatch batch, List<RackCells> rackCells, List<Cell> cells, List<OrderPreprocess> preprocesses) {
-	
+		
 		// 1. 소팅된 SKU 순서와 소팅된 로케이션 순서를 맞춰서 주문 가공 테이블에 업데이트한다.
 		for(int i = 0 ; i < preprocesses.size() ; i++) {
 			OrderPreprocess preprocess = preprocesses.get(i);
@@ -771,7 +582,7 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 		// 3. 결과 리턴
 		return preprocesses.size();
 	}
-	
+
 
 	/**
 	 * 호기 지정 전 validation
@@ -788,30 +599,6 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 	}
 	
 
-	public void completePreprocessingPararellDataCopy(JobBatch subBatch, Map<String,Object> params) {
-		if(ValueUtil.isEmpty(params)) {
-			String userId = (User.currentUser() != null) ? User.currentUser().getId() : null;
-			params = ValueUtil.newMap("domainId,userId", subBatch.getDomainId(), userId);
-		}
 	
-		// 호기 조회
-		Rack rackInfo = Rack.findByRackCd(subBatch.getDomainId(), subBatch.getEquipCd(), true);
-	
-		// 호기 타입이 병렬 타입이면 데이터 복사
-		if(ValueUtil.isEqualIgnoreCase(rackInfo.getRackType(), "P")) {
-			String cloneGroupId = subBatch.getId();
-			String cloneSql = this.queryStore.getRtnPararellRackPreprocessCloneQuery();
-			params.put("cloneGroupId", cloneGroupId);
-			params.put("Cd", subBatch.getEquipCd());
-			params.put("batchId", subBatch.getId());
-			this.queryManager.executeBySql(cloneSql, params);
-	
-			String updateSql = "UPDATE TB_RTN_PREPROCESS SET CLONE_GROUP_ID = :cloneGroupId, UPDATER_ID = :userId, UPDATED_AT = SYSDATE WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId";
-			this.queryManager.executeBySql(updateSql, params);
-	
-			//subBatch.setCloneGroupId(cloneGroupId);
-			//this.queryManager.update(subBatch, "cloneGroupId");
-		}
-	}
 
 }
