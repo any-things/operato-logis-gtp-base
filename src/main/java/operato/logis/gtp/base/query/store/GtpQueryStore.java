@@ -106,7 +106,6 @@ public class GtpQueryStore extends AbstractQueryStore {
 	 * 작업 배치 주문 정보의 SKU 별 총 주문 개수와 주문 가공 정보(RtnPreprocess)의 SKU 별 총 주문 개수를
 	 * SKU 별로 비교하여 같지 않은 거래처의 정보만 조회하는 쿼리
 	 *
-	 * @param 
 	 * @return
 	 */
 	public String getRtnOrderPreprocessDiffStatusQuery() {
@@ -116,7 +115,6 @@ public class GtpQueryStore extends AbstractQueryStore {
 	/**
 	 * 주문 가공 정보 호기 데이터 확인
 	 *
-	 * @param 
 	 * @return
 	 */
 	public String getRtnPreprocessRackSummaryQuery() {
@@ -126,11 +124,19 @@ public class GtpQueryStore extends AbstractQueryStore {
 	/**
 	 * Cell 할당을 위한 소팅 쿼리
 	 *
-	 * @param 
 	 * @return
 	 */
 	public String getCommonCellSortingQuery() {
 		return this.getQueryByPath("rtn/commonCellSorting");
+	} 
+	
+	/**
+	 * 병렬 호기인 경우 주문 가공 복제 쿼리
+	 *
+	 * @return
+	 */
+	public String getRtnPararellRackPreprocessCloneQuery() {
+		return this.getQueryByPath("rtn/rtnPararellRackPreprocessClone");
 	} 
 	
 	
