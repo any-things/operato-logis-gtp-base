@@ -148,5 +148,33 @@ public class GtpQueryStore extends AbstractQueryStore {
 		return this.getQueryByPath("rtn/rtnBatchIdOfOrderUpdate");
 	} 
 	
+	/**
+	 * 작업 차수 생성
+	 *
+	 * @return
+	 */
+	public String getRtnCreateJobBatchSeqQuery() {
+		return this.getQueryByPath("rtn/rtnCreateJobBatchSeq");
+	} 
+	
+	/**
+	 * 작업 차수 생성
+	 *
+	 * @return
+	 */
+	public String getRtnGenerateJobInstancesQuery() {
+		return this.getQueryByPath("rtn/rtnGenerateJobInstances");
+	} 
+	
+	/**
+	 * Work Cell 생성
+	 *
+	 * @return
+	 */
+	public String getRtnGenerateWorkCellQuery() {
+		return this.getQueryByPath("rtn/rtnGenerateWorkCell");
+	} 
+	
+	
 	
 }

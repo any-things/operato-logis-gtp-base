@@ -129,8 +129,6 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 
 	@Override
 	public void resetPreprocess(JobBatch batch, boolean resetAll, List<String> equipCdList) {
-		// TODO Auto-generated method stub
-		
 		//배치 리셋을 위한 배치 정보 체크
 		this.checkJobBatchesForReset(batch, batch.getId());
 		
@@ -179,7 +177,7 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 	 */
 	public int assignRackByManual(JobBatch batch, String equipCds, List<OrderPreprocess> items ) {
 		// 1. 이미 호기가 지정 되어 있는 거래처 개수 조회
-		Rack rack = Rack.findByRackCd(batch.getDomainId(),equipCds, true);
+		Rack rack = Rack.findByRackCd(batch.getDomainId(),equipCds, false);
 		Map<String, Object> params = ValueUtil.newMap("batchId,equipCd", batch.getId(), equipCds);
 		int assignedCount = this.queryManager.selectSize(OrderPreprocess.class, params);
 
@@ -196,8 +194,15 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 			preprocess.setEquipNm(rack.getRackNm());
 		}
 		
-		AnyOrmUtil.updateBatch(items, 100, "equipCd", "equipNm", "updatedAt");
+		// 4. 호기에 배치ID 매핑
+		rack.setBatchId(batch.getId()); 
+		rack.setStatus(JobBatch.STATUS_WAIT);
+		this.queryManager.update(rack, "batchId","status");
 		
+		
+		//5. OrderPreprocess 호기 지정 Update
+		AnyOrmUtil.updateBatch(items, 100, "equipCd", "equipNm", "updatedAt");
+		 
 		return 0;
 	}
 
@@ -215,7 +220,7 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 		int skuCount = items.size();
 	 
 		List<RackCells> rackCells = this.rackAssignmentStatus(batch);
-
+		
 		// 3. 상품 개수와 호기의 사용 가능한 셀 개수를 비교해서
 		int rackCapa = 0;
 		for(RackCells rackCell : rackCells) {
@@ -234,7 +239,11 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 		boolean idxGoForward = true;
 		int rackIdx = 0;
 		int rackEndIdx = rackCells.size();
+		String checkRack = "";
+		
 
+		List<Rack> rackList = new ArrayList<Rack>();
+		
 		// 5. 주문 가공별로 루프
 		for(OrderPreprocess preprocess : items) {
 			
@@ -266,9 +275,20 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 			} else {
 				rackIdx = idxGoForward ? rackIdx + 1 : rackIdx - 1;
 			}
+			
+			//호기에 배치ID 매핑
+			if(!checkRack.equals(rackCell.getRackCd())) {
+				checkRack = rackCell.getRackCd();
+				
+				Rack rack= Rack.findByRackCd(batch.getDomainId(), checkRack, true);
+				rack.setBatchId(preprocess.getBatchId());
+				rack.setStatus(JobBatch.STATUS_WAIT); 
+				this.queryManager.update(rack, "batchId","status");
+				
+			}
 		}
-
-		// 6. 주문 가공 정보 업데이트
+		  
+		// 7. 주문 가공 정보 업데이트
 		AnyOrmUtil.updateBatch(items, 100, "equipCd", "equipNm", "updatedAt");
 		return items.size();
 	}
@@ -462,11 +482,7 @@ public class RtnPreprocessService extends AbstractQueryService implements IPrepr
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,outerJoinDiretion", batch.getDomainId(), batch.getId(),outerJoinDiretion);
 		return BeanUtil.get(IQueryManager.class).selectListBySql(sql, params, RtnPreprocessStatus.class, 0, 0);
 	}
-	
-	
-	
-	
-	
+	 
 	/**
 	 * 작업 서브 배치 별 주문 가공 완료 처리
 	 *
