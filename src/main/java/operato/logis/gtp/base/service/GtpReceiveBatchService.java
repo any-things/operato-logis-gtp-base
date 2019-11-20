@@ -282,13 +282,15 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 		JobBatch batch = event.getJobBatch();
 		
 		// 2. 배치 상태 체크
-		String currentStatus = batch.getCurrentStatus();
+		String sql = "select status from job_batches where domain_id = :domainId and id = :id";
+		Map<String, Object> params = ValueUtil.newMap("domainId,id", batch.getDomainId(), batch.getId());
+		String currentStatus = AnyEntityUtil.findItem(batch.getDomainId(), true, String.class, sql, params);
 		
 		if(ValueUtil.isNotEqual(currentStatus, JobBatch.STATUS_WAIT) && ValueUtil.isNotEqual(currentStatus, JobBatch.STATUS_READY)) {
 			throw new ElidomRuntimeException("작업 대기 상태에서만 취소가 가능 합니다.");
 		}
 		
-		// 2. 주문 취소시 데이터 유지 여부에 따라서
+		// 3. 주문 취소시 데이터 유지 여부에 따라서
 		boolean isKeepData = BatchJobConfigUtil.isDeleteWhenOrderCancel(batch);
 		int cancelledCnt = isKeepData ? this.cancelOrderKeepData(batch) : this.cancelOrderDeleteData(batch);
 		event.setResult(cancelledCnt);
