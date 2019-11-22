@@ -12,4 +12,6 @@ public class GtpBaseConstants extends LogisConstants {
 	 * ALL
 	 */
 	public static final String ALL_CAPITAL_STR = "ALL";
+	
+
 }
