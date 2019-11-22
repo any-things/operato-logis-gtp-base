@@ -1,21 +1,24 @@
 package operato.logis.gtp.base.service.rtn;
   
-import java.util.Map; 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.event.EventListener;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
- 
-import xyz.anythings.base.entity.Rack; 
-import xyz.anythings.base.event.rest.DeviceProcessRestEvent; 
-import xyz.anythings.base.service.impl.SkuSearchService;
+
+import xyz.anythings.base.LogisConstants;
+import xyz.anythings.base.entity.BoxPack;
+import xyz.anythings.base.entity.JobBatch;
+import xyz.anythings.base.entity.JobConfigSet;
+import xyz.anythings.base.entity.JobInstance;
+import xyz.anythings.base.entity.WorkCell;
+import xyz.anythings.base.event.ICategorizeEvent;
+import xyz.anythings.base.event.IClassifyErrorEvent;
+import xyz.anythings.base.event.IClassifyInEvent;
+import xyz.anythings.base.event.IClassifyOutEvent;
+import xyz.anythings.base.event.IClassifyRunEvent;
+import xyz.anythings.base.model.Category;
+import xyz.anythings.base.service.api.IAssortService;
+import xyz.anythings.base.service.api.IBoxingService;
+import xyz.anythings.base.service.impl.LogisServiceDispatcher;
 import xyz.anythings.sys.service.AbstractExecutionService; 
-import xyz.anythings.sys.util.AnyOrmUtil;
-import xyz.elidom.dbist.dml.Query;   
-import xyz.elidom.sys.entity.Domain; 
-import xyz.elidom.sys.util.ThrowUtil;  
-import xyz.elidom.util.ValueUtil; 
 
 
 
@@ -25,38 +28,172 @@ import xyz.elidom.util.ValueUtil;
  * @author shortstop
  */
 @Component("rtnAssortService")
-public class RtnAssortService extends AbstractExecutionService {
+public class RtnAssortService extends AbstractExecutionService implements IAssortService {
+
 	/**
-	 * 상품 코드로 상품 조회 서비스
+	 * 서비스 디스패처
 	 */
 	@Autowired
-	protected SkuSearchService skuSearchService;
-	 
-	/**
-	 * 슈트 정보를 받아서 유효한 지 체크한 후 호기/슈트 정보를 리턴
-	 *
-	 * @param chuteNo
-	 * @return
-	 */ 
-	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/chute_info','RTN')")
-	@Order(Ordered.LOWEST_PRECEDENCE)
-	public Object validateChute(DeviceProcessRestEvent event) {
-		Long domainId = Domain.currentDomainId();
-		String chuteNo = event.getRequestParams().get("chuteNo").toString();
-		Query query = AnyOrmUtil.newConditionForExecution(domainId);
-		query.addFilter("chuteNo", chuteNo);
-		Rack rack = this.queryManager.selectByCondition(Rack.class, query);
+	private LogisServiceDispatcher serviceDispatcher;
+	
+	@Override
+	public String getJobType() {
+		return LogisConstants.JOB_TYPE_RTN;
+	}
 
-		if(rack == null) {
-			// 슈트 번호(1) 을(를) 찾을수 없습니다
-			throw ThrowUtil.newNotFoundRecord("terms.label.chute_no", chuteNo);
-		}
-		Map<String, Object> retValue= ValueUtil.newMap("rack_cd,rack_nm,chute_no", rack.getRackCd(), rack.getRackNm(), chuteNo);
+	@Override
+	public JobConfigSet getJobConfigSet(String batchId) {
+		return this.serviceDispatcher.getConfigSetService().getConfigSet(batchId);
+	}
+
+	@Override
+	public Category categorize(ICategorizeEvent event) {
+		// TODO 중분류 
+		return null;
+	}
+
+	@Override
+	public String checkInput(Long domainId, String inputId, Object... params) {
+		// TODO inputId를 체크하여 어떤 코드 인지 (상품 코드, 상품 바코드, 박스 ID, 랙 코드, 셀 코드 등) 체크 
+		return null;
+	}
+
+	@Override
+	public void input(IClassifyInEvent inputEvent) {
+		// TODO 소분류 - 상품 투입 
 		
-		event.setResult(retValue);
-		event.setExecuted(true); 
+	}
+
+	@Override
+	public Object classify(IClassifyRunEvent exeEvent) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public Object output(IClassifyOutEvent outputEvent) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public boolean checkEndClassifyAll(String batchId) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public void batchStartAction(JobBatch batch) {
+		// TODO 작업 지시 시점에 반품 관련 추가 처리 - Ex) 할당된 표시기에 점등 ... 
 		
-		return retValue;
+	}
+
+	@Override
+	public void batchCloseAction(JobBatch batch) {
+		// TODO 배치 마감 시점에 반품 관련 추가 처리 - Ex) 셀 별 잔량 풀 박스 처리 ... 
+		
+	}
+
+	@Override
+	public void handleClassifyException(IClassifyErrorEvent errorEvent) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public IBoxingService getBoxingService(Object... params) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public Object inputSkuSingle(IClassifyInEvent inputEvent) {
+		// TODO 상품 1 PCS 씩 별 투입
+		return null;
+	}
+
+	@Override
+	public Object inputSkuBundle(IClassifyInEvent inputEvent) {
+		// TODO 상품 묶음 투입
+		return null;
+	}
+
+	@Override
+	public Object inputSkuBox(IClassifyInEvent inputEvent) {
+		// TODO 상품을 박스 단위 투입
+		return null;
+	}
+
+	@Override
+	public Object inputForInspection(IClassifyInEvent inputEvent) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public void confirmAssort(IClassifyRunEvent exeEvent) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void cancelAssort(IClassifyRunEvent exeEvent) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public int splitAssort(IClassifyRunEvent exeEvent) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	@Override
+	public int undoAssort(IClassifyRunEvent exeEvent) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	@Override
+	public BoxPack fullBoxing(IClassifyRunEvent exeEvent) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public BoxPack partialFullboxing(IClassifyRunEvent exeEvent) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public BoxPack cancelBoxing(Long domainId, String boxPackId) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public JobInstance splitJob(JobInstance job, WorkCell workCell, int splitQty) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public boolean checkStationJobsEnd(JobBatch batch, String stationCd, JobInstance job) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean checkCellAssortEnd(JobBatch batch, String stationCd, JobInstance job) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean finishAssortCell(JobInstance job, WorkCell workCell, boolean finalEndFlag) {
+		// TODO Auto-generated method stub
+		return false;
 	}
 
 }
