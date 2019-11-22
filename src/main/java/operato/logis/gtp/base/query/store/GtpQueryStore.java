@@ -166,14 +166,6 @@ public class GtpQueryStore extends AbstractQueryStore {
 		return this.getQueryByPath("rtn/rtnGenerateJobInstances");
 	} 
 	
-	/**
-	 * Work Cell 생성
-	 *
-	 * @return
-	 */
-	public String getRtnGenerateWorkCellQuery() {
-		return this.getQueryByPath("rtn/rtnGenerateWorkCell");
-	} 
 	
 	
 	
