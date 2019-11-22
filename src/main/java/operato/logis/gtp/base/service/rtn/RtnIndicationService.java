@@ -28,7 +28,7 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 	}
 
 	@Override
-	public IIndRequestService getIndicatorRequestService(String indType) {
+	public IIndRequestService getIndicatorRequestService(String batchId) {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -65,6 +65,18 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 
 	@Override
 	public void indicatorOnForPickEnd(JobInstance job, boolean finalEnd) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void indicatorOffAll(Long domainId, String batchId) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void indicatorListOff(Long domainId, String equipType, String equipCd, String stationCd) {
 		// TODO Auto-generated method stub
 		
 	}
@@ -152,7 +164,7 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 	}
 
 	@Override
-	public void restoreIndicatorsOn(JobBatch batch, Gateway gw) {
+	public void restoreIndicatorsOn(JobBatch batch) {
 		// TODO Auto-generated method stub
 		
 	}
