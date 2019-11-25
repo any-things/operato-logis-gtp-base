@@ -44,7 +44,7 @@ public class RtnJobStatusService extends AbstractJobStatusService {
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		condition.addFilter("batchId", batch.getId());
 		condition.addFilter("status", LogisConstants.JOB_STATUS_PICKING);
-		condition.addFilter("pickingQty", ">=", 1);
+		condition.addFilter("pickingQty", ">", 1);
 		return this.queryManager.selectList(JobInstance.class, condition);
 	}
 
