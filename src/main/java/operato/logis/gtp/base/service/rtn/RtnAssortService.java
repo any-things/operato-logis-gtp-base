@@ -1,5 +1,7 @@
 package operato.logis.gtp.base.service.rtn;
      
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;  
 import org.springframework.stereotype.Component;
@@ -20,9 +22,12 @@ import xyz.anythings.base.event.classfy.ClassifyRunEvent;
 import xyz.anythings.base.model.Category; 
 import xyz.anythings.base.service.api.IAssortService;
 import xyz.anythings.base.service.api.IBoxingService;
-import xyz.anythings.base.service.impl.LogisServiceDispatcher; 
-import xyz.anythings.sys.service.AbstractExecutionService; 
+import xyz.anythings.base.service.impl.LogisServiceDispatcher;
+import xyz.anythings.base.util.LogisBaseUtil;
+import xyz.anythings.sys.service.AbstractExecutionService;
+import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.anythings.sys.util.AnyOrmUtil;
+import xyz.anythings.sys.util.AnyValueUtil;
 import xyz.elidom.dbist.dml.Query;
 import xyz.elidom.exception.server.ElidomRuntimeException; 
 import xyz.elidom.util.DateUtil;
@@ -67,41 +72,39 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 	}
 
 	@Override
-	public Object input(IClassifyInEvent inputEvent) {
-		// TODO 소분류 - 상품 투입 
+	public Object input(IClassifyInEvent inputEvent) { 
 		return this.inputSkuSingle(inputEvent); 
 		
 	} 
 	
-	@EventListener(classes = ClassifyRunEvent.class, condition = "#event.jobType == 'rtn")
+	@EventListener(classes = ClassifyRunEvent.class, condition = "#exeEvent.jobType == 'RTN'")
 	public Object classify(IClassifyRunEvent exeEvent) { 
 		String classifyAction = exeEvent.getClassifyAction();
-		JobInstance instance = exeEvent.getJobInstance(); 
-		
-		Integer reqQty = exeEvent.getReqQty();//피킹 수량
-		Integer resQty = exeEvent.getResQty();//확정 수량 
-		Integer picking = 0, picked=0;
+		JobInstance job = exeEvent.getJobInstance();
 		
 		switch(classifyAction) {
+			//분류 처리 액션 - 확정 처리
 			case LogisCodeConstants.CLASSIFICATION_ACTION_CONFIRM :
 				this.confirmAssort(exeEvent);
-			break; 
+				break; 
+			// Indicator의 Cancel 기능 버튼을 눌러서 처리
 			case LogisCodeConstants.CLASSIFICATION_ACTION_CANCEL :
 				this.cancelAssort(exeEvent);
 				break; 
+			//분류 처리 액션 - 수정 처리 
 			case LogisCodeConstants.CLASSIFICATION_ACTION_MODIFY :
 				this.splitAssort(exeEvent);
 				break;
+			//분류 처리 액션 - Fullbox
 			case LogisCodeConstants.CLASSIFICATION_ACTION_FULL :
 				this.fullBoxing(exeEvent);
 				break;
-				
-			default :
-				break;
 		}
-		return null;
+		exeEvent.setExecuted(true);
+		return job;
 	}
-
+	
+	 
 	@Override
 	public Object output(IClassifyOutEvent outputEvent) {
 		// TODO Auto-generated method stub
@@ -146,43 +149,59 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		Integer inputQty = inputEvent.getInputQty();
 		String nowStr = DateUtil.currentTimeStr();
 		
+		// 1. skuCd
+		//List<JobInstance> checkList = this.serviceDispatcher.getJobStatusService(batch).searchPickingJobList(batch, null);
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		condition.addFilter("batchId", batch.getId());
 		condition.addFilter("comCd", comCd);
-		condition.addFilter("skuCd", skuCd);
+		condition.addFilter("skuCd", "noteq", skuCd);
 		condition.addFilter("equipCd", batch.getEquipCd());
-		condition.addFilter("status", "in", LogisConstants.JOB_STATUS_WIPC);
-		JobInstance instance = this.queryManager.selectByCondition(JobInstance.class, condition);
+		condition.addFilter("status", LogisConstants.JOB_STATUS_PICKING);
+		condition.addFilter("pickingQty", ">=", 1);
+		int count = this.queryManager.selectSize(JobInstance.class, condition);
+		if(count > 0) { 
+			throw new ElidomRuntimeException("상품을 확인하세요.");
+		}
 		
-		Integer pickingQty = instance.getPickingQty()+inputQty;
+		//Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
+		condition.addFilter("batchId", batch.getId());
+		condition.addFilter("comCd", comCd);
+		condition.removeFilter("skuCd");
+		condition.addFilter("skuCd", skuCd);
+		condition.removeFilter("status");
+		condition.addFilter("status", "in", LogisConstants.JOB_STATUS_WIPC);
+		condition.removeFilter("pickingQty");
+		JobInstance job = this.queryManager.selectByCondition(JobInstance.class, condition);
+		
+		Integer pickingQty = job.getPickingQty()+inputQty;
 	 
-		if(instance.getPickQty() > pickingQty)
+		if(job.getPickQty() >= (job.getPickedQty()+pickingQty))
 		{	
 			//배치의 Max Seq 사용
-			instance.setInputSeq(1);
-			instance.setPickingQty(pickingQty);
-			instance.setStatus(LogisConstants.JOB_STATUS_PICKING);
-			if(ValueUtil.isEmpty(instance.getPickStartedAt()))
+			job.setInputSeq(1);
+			job.setPickingQty(pickingQty);
+			job.setStatus(LogisConstants.JOB_STATUS_PICKING);
+			if(ValueUtil.isEmpty(job.getPickStartedAt()))
 			{
-				instance.setPickStartedAt(nowStr);
+				job.setPickStartedAt(nowStr);
 			}
 			
-			if(ValueUtil.isEmpty(instance.getInputAt()))
+			if(ValueUtil.isEmpty(job.getInputAt()))
 			{
-				instance.setInputAt(nowStr);
+				job.setInputAt(nowStr);
 			} 
-			instance.setColorCd(LogisConstants.COLOR_RED);
-			this.queryManager.update(instance, "inputSeq", "pickingQty", "status", "pickStartedAt", "inputAt", "colorCd");
+			job.setColorCd(LogisConstants.COLOR_RED);
+			this.queryManager.update(job, "inputSeq", "pickingQty", "status", "pickStartedAt", "inputAt", "colorCd");
 			
 			// 표시기 점등
-			this.serviceDispatcher.getIndicationService(batch).indicatorOnForPick(instance, instance.getPickingQty(), 0, 0);
+			this.serviceDispatcher.getIndicationService(batch).indicatorOnForPick(job, job.getPickingQty(), 0, 0);
 			
 		}else {
 			// 처리 가능한 수량 초과.
 			throw new ElidomRuntimeException("처리 예정 수량을 초과 했습니다.");
 		} 
 		
-		return instance;
+		return job;
 	}
 
 	@Override
@@ -204,26 +223,21 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 	}
 
 	@Override
-	public void confirmAssort(IClassifyRunEvent exeEvent) {
-		int reqQty = exeEvent.getReqQty(); //불켜진 수량
-		int resQty = exeEvent.getResQty(); // 확정 수량
-		
+	public void confirmAssort(IClassifyRunEvent exeEvent) { 
 		JobInstance job = exeEvent.getJobInstance();
+		job.setPickedQty(job.getPickedQty() + job.getPickingQty());
 		job.setPickingQty(0);
-		job.setPickedQty(job.getPickedQty() + resQty);
 		
 		if(job.getPickedQty() >= job.getPickQty()) {
 			job.setStatus(LogisConstants.JOB_STATUS_FINISH);
 			this.queryManager.update(job, "pickingQty", "pickedQty","status");
-		}else {
+		}else { 
 			this.queryManager.update(job, "pickingQty", "pickedQty");
 		} 
 	}
 
 	@Override
-	public void cancelAssort(IClassifyRunEvent exeEvent) {
-		int reqQty = exeEvent.getReqQty(); //불켜진 수량
-		int resQty = exeEvent.getResQty(); // 확정 수량
+	public void cancelAssort(IClassifyRunEvent exeEvent) { 
 		JobInstance job = exeEvent.getJobInstance();
 		
 		job.setPickingQty(0);
@@ -232,19 +246,23 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 	}
 
 	@Override
-	public int splitAssort(IClassifyRunEvent exeEvent) {
-		int reqQty = exeEvent.getReqQty(); //불켜진 수량
-		int resQty = exeEvent.getResQty(); // 확정 수량
+	public int splitAssort(IClassifyRunEvent exeEvent) { 
+		int resQty = exeEvent.getResQty(); // 확정 수량 
+		int pickedQty=0;
 		
 		JobInstance job = exeEvent.getJobInstance();
-		job.setPickingQty(0);
-		job.setPickedQty(job.getPickedQty() + resQty);
+		 
+		pickedQty = job.getPickedQty();
+		pickedQty = pickedQty + resQty;
 		
-		if(job.getPickedQty() >= job.getPickQty()) {
+		job.setPickingQty(0);
+		job.setPickedQty(pickedQty);
+		
+		if(job.getPickedQty() >= job.getPickQty()) { 
 			job.setStatus(LogisConstants.JOB_STATUS_FINISH);
 			this.queryManager.update(job, "pickingQty", "pickedQty","status");
 		}else {
-			this.queryManager.update(job, "pickingQty", "pickedQty");
+			this.queryManager.update(job,  "pickingQty", "pickedQty" );
 		} 
 		return 0;
 	}
@@ -257,7 +275,33 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 
 	@Override
 	public BoxPack fullBoxing(IClassifyRunEvent exeEvent) {
-		// TODO Auto-generated method stub
+		JobInstance job = exeEvent.getJobInstance();
+		
+		int resQty = job.getPickedQty(); // 확정 수량
+		
+		if((job.getPickQty()-resQty)>0 ) {
+			//예정 수량이 미 완료 되었을 경우
+			JobInstance newJob = AnyValueUtil.populate(job, new JobInstance());
+			String newJobId = AnyValueUtil.newUuid36();
+			
+			newJob.setId(newJobId);
+			newJob.setPickQty(resQty);
+			newJob.setPickingQty(0);
+			newJob.setPickedQty(resQty);
+			newJob.setStatus(LogisConstants.JOB_STATUS_BOXED);
+			this.queryManager.insert(newJob);
+			 
+			job.setPickQty(job.getPickQty()-resQty);
+			job.setPickingQty(0);
+			job.setStatus(LogisConstants.JOB_STATUS_WAIT);
+			this.queryManager.update(job, "pickQty","pickingQty", "status");			
+		}else if((job.getPickQty()-resQty) <= 0) { 
+			//예정 수량이 완료 되었을 경우
+			job.setPickingQty(0);
+			job.setStatus(LogisConstants.JOB_STATUS_BOXED);
+			this.queryManager.update(job, "pickingQty", "status");	
+		}
+		
 		return null;
 	}
 
