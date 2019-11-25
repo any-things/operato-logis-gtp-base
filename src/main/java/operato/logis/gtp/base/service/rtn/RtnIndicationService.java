@@ -12,9 +12,11 @@ import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.query.store.IndicatorQueryStore;
 import xyz.anythings.base.service.api.IIndicationService;
 import xyz.anythings.gw.entity.Gateway;
+import xyz.anythings.gw.entity.IndConfigSet;
 import xyz.anythings.gw.service.IndicatorDispatcher;
 import xyz.anythings.gw.service.api.IIndRequestService;
 import xyz.anythings.sys.service.AbstractExecutionService;
+import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.elidom.sys.util.ValueUtil;
 import xyz.elidom.util.BeanUtil;
 
@@ -34,12 +36,27 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 
 	@Override
 	public IIndRequestService getIndicatorRequestService(JobBatch batch) {
-		return this.indicatorDispatcher.getIndicatorRequestServiceByBatch(batch.getId());
+		IIndRequestService indReqSvc = this.indicatorDispatcher.getIndicatorRequestServiceByBatch(batch.getId());
+		
+		if(indReqSvc == null) {
+			IndConfigSet indConfigSet = batch.getIndConfigSet();
+			this.indicatorDispatcher.addIndicatorConfigSet(batch.getId(), indConfigSet);
+			indReqSvc = this.indicatorDispatcher.getIndicatorRequestServiceByBatch(batch.getId());
+		}
+		
+		return indReqSvc;
 	}
 
 	@Override
 	public IIndRequestService getIndicatorRequestService(String batchId) {
-		return this.indicatorDispatcher.getIndicatorRequestServiceByBatch(batchId);
+		IIndRequestService indReqSvc = this.indicatorDispatcher.getIndicatorRequestServiceByBatch(batchId);
+		
+		if(indReqSvc == null) {
+			JobBatch batch = AnyEntityUtil.findEntityById(true, JobBatch.class, batchId);
+			indReqSvc = this.getIndicatorRequestService(batch);
+		}
+		
+		return indReqSvc;
 	}
 
 	@Override
