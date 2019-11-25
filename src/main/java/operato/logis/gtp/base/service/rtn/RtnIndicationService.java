@@ -3,15 +3,20 @@ package operato.logis.gtp.base.service.rtn;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.JobInput;
 import xyz.anythings.base.entity.JobInstance;
+import xyz.anythings.base.query.store.IndicatorQueryStore;
 import xyz.anythings.base.service.api.IIndicationService;
 import xyz.anythings.gw.entity.Gateway;
+import xyz.anythings.gw.service.IndicatorDispatcher;
 import xyz.anythings.gw.service.api.IIndRequestService;
 import xyz.anythings.sys.service.AbstractExecutionService;
+import xyz.elidom.sys.util.ValueUtil;
+import xyz.elidom.util.BeanUtil;
 
 /**
  * 반품 점, 소등 표시기 서비스
@@ -20,17 +25,21 @@ import xyz.anythings.sys.service.AbstractExecutionService;
  */
 @Component("rtnIndicationService")
 public class RtnIndicationService extends AbstractExecutionService implements IIndicationService {
+	
+	/**
+	 * 인디케이터 벤더별 서비스 디스패처 
+	 */
+	@Autowired
+	private IndicatorDispatcher indicatorDispatcher;
 
 	@Override
 	public IIndRequestService getIndicatorRequestService(JobBatch batch) {
-		// TODO Auto-generated method stub
-		return null;
+		return this.indicatorDispatcher.getIndicatorRequestServiceByBatch(batch.getId());
 	}
 
 	@Override
 	public IIndRequestService getIndicatorRequestService(String batchId) {
-		// TODO Auto-generated method stub
-		return null;
+		return this.indicatorDispatcher.getIndicatorRequestServiceByBatch(batchId);
 	}
 
 	@Override
@@ -53,8 +62,13 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 
 	@Override
 	public void indicatorOnForPick(JobInstance job, Integer firstQty, Integer secondQty, Integer thirdQty) {
-		// TODO Auto-generated method stub
+		IIndRequestService indReqSvc = this.getIndicatorRequestService(job.getBatchId());
 		
+		if(ValueUtil.isEmpty(job.getGwPath())) {
+			this.setIndInfoToJob(job);
+		}
+		
+		indReqSvc.requestIndOnForPick(job.getDomainId(), job.getStageCd(), job.getJobType(), job.getGwPath(), job.getIndCd(), job.getId(), job.getColorCd(), firstQty, secondQty);
 	}
 
 	@Override
@@ -179,6 +193,25 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 	public String nextIndicatorColor(JobInstance job, String prevColor) {
 		// TODO Auto-generated method stub
 		return null;
+	}
+	
+	/**
+	 * 작업 정보에 표시기 점등을 위한 게이트웨이, 표시기 코드 정보를 찾아 설정
+	 * 
+	 * @param job
+	 */
+	@SuppressWarnings("rawtypes")
+	public void setIndInfoToJob(JobInstance job) {
+		IndicatorQueryStore indQueryStore = BeanUtil.get(IndicatorQueryStore.class);
+		String sql = indQueryStore.getSearchIndicatorsQuery();
+		Map<String, Object> params = ValueUtil.newMap("domainId,activeFlag,rackCd,indQueryFlag", job.getDomainId(), true, job.getEquipCd(), true);
+		List<Map> indList = this.queryManager.selectListBySql(sql, params, Map.class, 0, 0);
+		Map indicator = ValueUtil.isNotEmpty(indList.get(0)) ? indList.get(0) : null;
+		
+		if(indicator != null) {
+			job.setIndCd(ValueUtil.toString(indicator.get("ind_cd")));
+			job.setGwPath(ValueUtil.toString(indicator.get("gw_path")));
+		}		
 	}
 
 }

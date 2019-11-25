@@ -1,16 +1,14 @@
 package operato.logis.gtp.base.service.rtn;
      
-import java.util.List;
-
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.event.EventListener;  
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
- 
+
 import xyz.anythings.base.LogisCodeConstants;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.BoxPack;
 import xyz.anythings.base.entity.JobBatch;
-import xyz.anythings.base.entity.JobConfigSet; 
+import xyz.anythings.base.entity.JobConfigSet;
 import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.entity.WorkCell;
 import xyz.anythings.base.event.ICategorizeEvent;
@@ -18,18 +16,16 @@ import xyz.anythings.base.event.IClassifyErrorEvent;
 import xyz.anythings.base.event.IClassifyInEvent;
 import xyz.anythings.base.event.IClassifyOutEvent;
 import xyz.anythings.base.event.IClassifyRunEvent;
-import xyz.anythings.base.event.classfy.ClassifyRunEvent; 
-import xyz.anythings.base.model.Category; 
+import xyz.anythings.base.event.classfy.ClassifyRunEvent;
+import xyz.anythings.base.model.Category;
 import xyz.anythings.base.service.api.IAssortService;
 import xyz.anythings.base.service.api.IBoxingService;
 import xyz.anythings.base.service.impl.LogisServiceDispatcher;
-import xyz.anythings.base.util.LogisBaseUtil;
 import xyz.anythings.sys.service.AbstractExecutionService;
-import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.anythings.sys.util.AnyValueUtil;
 import xyz.elidom.dbist.dml.Query;
-import xyz.elidom.exception.server.ElidomRuntimeException; 
+import xyz.elidom.exception.server.ElidomRuntimeException;
 import xyz.elidom.util.DateUtil;
 import xyz.elidom.util.ValueUtil; 
 
@@ -149,8 +145,7 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		Integer inputQty = inputEvent.getInputQty();
 		String nowStr = DateUtil.currentTimeStr();
 		
-		// 1. skuCd
-		//List<JobInstance> checkList = this.serviceDispatcher.getJobStatusService(batch).searchPickingJobList(batch, null);
+		// 1. 투입된 상품 코드를 제외하고 투입 이후 확정 처리가 안 된 상품을 조회 
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		condition.addFilter("batchId", batch.getId());
 		condition.addFilter("comCd", comCd);
@@ -158,21 +153,17 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		condition.addFilter("equipCd", batch.getEquipCd());
 		condition.addFilter("status", LogisConstants.JOB_STATUS_PICKING);
 		condition.addFilter("pickingQty", ">=", 1);
-		int count = this.queryManager.selectSize(JobInstance.class, condition);
-		if(count > 0) { 
-			throw new ElidomRuntimeException("상품을 확인하세요.");
+		if(this.queryManager.selectSize(JobInstance.class, condition) > 0) { 
+			throw new ElidomRuntimeException("투입된 이후 확정 처리를 안 한 셀이 있습니다.");
 		}
 		
-		//Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
-		condition.addFilter("batchId", batch.getId());
-		condition.addFilter("comCd", comCd);
+		// 2. 작업 인스턴스 조회 
 		condition.removeFilter("skuCd");
 		condition.addFilter("skuCd", skuCd);
 		condition.removeFilter("status");
 		condition.addFilter("status", "in", LogisConstants.JOB_STATUS_WIPC);
 		condition.removeFilter("pickingQty");
 		JobInstance job = this.queryManager.selectByCondition(JobInstance.class, condition);
-		
 		Integer pickingQty = job.getPickingQty()+inputQty;
 	 
 		if(job.getPickQty() >= (job.getPickedQty()+pickingQty))
@@ -196,7 +187,7 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 			// 표시기 점등
 			this.serviceDispatcher.getIndicationService(batch).indicatorOnForPick(job, job.getPickingQty(), 0, 0);
 			
-		}else {
+		} else {
 			// 처리 가능한 수량 초과.
 			throw new ElidomRuntimeException("처리 예정 수량을 초과 했습니다.");
 		} 
