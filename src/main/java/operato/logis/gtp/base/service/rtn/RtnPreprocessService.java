@@ -241,16 +241,8 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 				rackEndIdx--;
 			} else {
 				rackIdx = idxGoForward ? rackIdx + 1 : rackIdx - 1;
-			}
-			
-			// 호기에 배치 ID 매핑
-			if(!checkRack.equals(rackCell.getRackCd())) {
-				checkRack = rackCell.getRackCd();
-				Rack rack= Rack.findByRackCd(batch.getDomainId(), checkRack, true);
-				rack.setBatchId(preprocess.getBatchId());
-				rack.setStatus(JobBatch.STATUS_WAIT); 
-				this.queryManager.update(rack, "batchId", "status");
-			}
+			} 
+			 
 		}
 		  
 		// 6. 주문 가공 정보 업데이트
