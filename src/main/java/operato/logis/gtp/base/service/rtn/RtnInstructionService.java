@@ -219,6 +219,7 @@ public class RtnInstructionService  extends AbstractQueryService  implements IIn
 		String sql = "update orders set batch_id = :newBatchId, status = :status, equip_type = :equipType, equip_cd = :equipCd, equip_nm = :equipNm, sub_equip_cd = :subEquipCd, updated_at = :currentDate where domain_id = :domainId and batch_id = :mainBatchId and com_cd = :comCd and sku_cd = :skuCd";
 		
 		for(OrderPreprocess source : sources) {
+			params.put("subEquipCd", source.getSubEquipCd());
 			params.put("comCd", source.getComCd());
 			params.put("skuCd", source.getCellAssgnCd());
 			this.queryManager.executeBySql(sql, params);
