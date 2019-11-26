@@ -221,7 +221,7 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 	public void setIndInfoToJob(JobInstance job) {
 		IndicatorQueryStore indQueryStore = BeanUtil.get(IndicatorQueryStore.class);
 		String sql = indQueryStore.getSearchIndicatorsQuery();
-		Map<String, Object> params = ValueUtil.newMap("domainId,activeFlag,rackCd,indQueryFlag", job.getDomainId(), true, job.getEquipCd(), true);
+		Map<String, Object> params = ValueUtil.newMap("domainId,stageCd,activeFlag,rackCd,indQueryFlag", job.getDomainId(), job.getStageCd(), true, job.getEquipCd(), true);
 		List<Map> indList = this.queryManager.selectListBySql(sql, params, Map.class, 0, 0);
 		Map indicator = ValueUtil.isNotEmpty(indList.get(0)) ? indList.get(0) : null;
 		
