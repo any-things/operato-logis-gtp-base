@@ -166,7 +166,13 @@ public class GtpQueryStore extends AbstractQueryStore {
 		return this.getQueryByPath("rtn/rtnGenerateJobInstances");
 	} 
 	
-	
-	
+	/**
+	 * 작업 지시를 위해 주문 가공 완료 요약 (거래처 개수, 상품 개수, PCS) 정보 조회
+	 *
+	 * @return
+	 */
+	public String getRtnInstructionSummaryDataQuery() {
+		return this.getQueryByPath("rtn/rtnInstructionSummaryData");
+	} 
 	
 }

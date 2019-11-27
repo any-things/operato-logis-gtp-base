@@ -22,9 +22,6 @@ import xyz.elidom.util.ValueUtil;
 @Component("rtnDeviceProcessService")
 public class RtnDeviceProcessService extends AbstractExecutionService{
 	
-	@Autowired 
-	RtnAssortService  rtnAssortService;
-	
 	@Autowired
 	GtpQueryStore gtpQueryStore;
 	

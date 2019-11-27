@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Component; 
 
 import operato.logis.gtp.base.query.store.GtpQueryStore;
 import xyz.anythings.base.LogisConstants;
@@ -38,8 +38,17 @@ public class RtnInstructionService  extends AbstractQueryService  implements IIn
 	
 	@Override
 	public Map<String, Object> searchInstructionData(JobBatch batch, Object... params) {
-		// TODO Auto-generated method stub
-		return null;
+		String sql = QueryStore.getRtnInstructionSummaryDataQuery();
+		Long domainId = batch.getDomainId();
+		Map<String,Object> param = ValueUtil.newMap("domainId,batchId", domainId, batch.getId());
+		Map<?, ?> cntResult = this.queryManager.selectBySql(sql, param, Map.class);
+ 
+		Query condition = AnyOrmUtil.newConditionForExecution(domainId, 0, 0);
+		condition.addFilter("batchId", batch.getId());
+		condition.addOrder("cellAssgnCd", true);
+		List<OrderPreprocess> preprocesses = this.queryManager.selectList(OrderPreprocess.class, condition);
+
+		return ValueUtil.newMap("list,skuCnt,pcsCnt,custCnt", preprocesses, cntResult.get("sku_cnt"), cntResult.get("pcs_cnt"), cntResult.get("cust_cnt"));
 	}
 	
 	@Override
