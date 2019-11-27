@@ -54,6 +54,12 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 	public JobConfigSet getJobConfigSet(String batchId) {
 		return this.serviceDispatcher.getConfigSetService().getConfigSet(batchId);
 	}
+	
+	@Override
+	public Object boxCellMapping(JobBatch batch, String cellCd, String boxId) {
+		// TODO Auto-generated method stub
+		return null;
+	}	
 
 	@Override
 	public Category categorize(ICategorizeEvent event) {
@@ -330,5 +336,6 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 	public boolean finishAssortCell(JobInstance job, WorkCell workCell, boolean finalEndFlag) {
 		// TODO Auto-generated method stub
 		return false;
-	}	
+	}
+
 }
