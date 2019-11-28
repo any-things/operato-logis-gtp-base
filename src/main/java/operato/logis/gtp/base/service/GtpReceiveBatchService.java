@@ -62,14 +62,11 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 	 * 배치 수신 서머리 데이터 생성 
 	 * 
 	 * @param receipt
-	 * @param areaCd
-	 * @param stageCd
-	 * @param comCd
-	 * @param jobDate
+	 * @param jobType
 	 * @param params
 	 * @return
 	 */
-	private BatchReceipt createReadyToReceiveData(BatchReceipt receipt, String jobType,Object ... params) {
+	private BatchReceipt createReadyToReceiveData(BatchReceipt receipt, String jobType, Object ... params) {
 		// 1. 대기 상태 이거나 진행 중인 수신이 있는지 확인
 		
 		BatchReceipt runBatchReceipt = this.checkRunningOrderReceipt(receipt,jobType);
@@ -107,12 +104,13 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 	 * 대기 상태 이거나 진행 중인 수신이 있는지 확인
 	 * 
 	 * @param domainId
+	 * @param jobType
 	 * @return
 	 */
-	private BatchReceipt checkRunningOrderReceipt(BatchReceipt receipt,String jobType) {
+	private BatchReceipt checkRunningOrderReceipt(BatchReceipt receipt, String jobType) {
 		Map<String,Object> paramMap = ValueUtil.newMap("domainId,comCd,areaCd,stageCd,jobDate,status,jobType", 
 				receipt.getDomainId(), receipt.getComCd(), receipt.getAreaCd(), receipt.getStageCd(), receipt.getJobDate(),
-				ValueUtil.newStringList(LogisConstants.COMMON_STATUS_WAIT, LogisConstants.COMMON_STATUS_RUNNING),jobType);
+				ValueUtil.newStringList(LogisConstants.COMMON_STATUS_WAIT, LogisConstants.COMMON_STATUS_RUNNING), jobType);
 		 
 		BatchReceipt receiptData = 
 				this.queryManager.selectBySql(this.batchQueryStore.getBatchReceiptOrderTypeStatusQuery(), paramMap, BatchReceipt.class);
@@ -160,6 +158,7 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 	 * 배치, 작업 수신
 	 * 
 	 * @param receipt
+	 * @param item
 	 * @param params
 	 * @return
 	 */
