@@ -1,5 +1,7 @@
 package operato.logis.gtp.base.service.rtn;
      
+import java.util.Date;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -26,7 +28,7 @@ import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.anythings.sys.util.AnyValueUtil;
 import xyz.elidom.dbist.dml.Query;
 import xyz.elidom.exception.server.ElidomRuntimeException;
-import xyz.elidom.util.DateUtil;
+import xyz.elidom.sys.util.DateUtil; 
 import xyz.elidom.util.ValueUtil; 
 
 
@@ -57,8 +59,44 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 	
 	@Override
 	public Object boxCellMapping(JobBatch batch, String cellCd, String boxId) {
-		// TODO Auto-generated method stub
-		return null;
+		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
+		//1. Box 사용여부 체크
+		condition.addFilter("boxTypeCd", LogisConstants.BOX_ID_UNIQUE_SCOPE_GLOBAL);
+		condition.addFilter("boxId",boxId);
+		condition.addFilter("stageCd", batch.getStageCd());
+		BoxPack boxPack = this.queryManager.selectByCondition(BoxPack.class, condition);
+		
+	
+//		if(boxPack == null) {
+//			throw new ElidomRuntimeException("박스 정보가 없습니다.");
+//		}else if(boxPack.getStatus()=="W") {
+//			throw new ElidomRuntimeException("이미 사용중인 박스입니다.");
+//		} 
+//		
+		condition.removeFilter("boxTypeCd");
+		condition.removeFilter("boxId");
+		condition.removeFilter("stageCd");
+		
+		// 2. 작업 WorkCell 조회
+		condition.addFilter("batchId", batch.getId());
+		condition.addFilter("cellCd", cellCd);
+		
+		WorkCell cell = this.queryManager.selectByCondition(WorkCell.class, condition);
+		cell.setBoxId(boxId);
+		
+		condition.removeFilter("cellCd");
+		
+		//3. JobInstance 정보 조회
+		condition.addSelect("id","picked_qty","picking_qty");
+		condition.addFilter("subEquipCd", cellCd); 
+		condition.addFilter("status","in", LogisConstants.JOB_STATUS_PF); 
+		JobInstance job = this.queryManager.selectByCondition(JobInstance.class, condition);
+		
+		if(job.getPickingQty()>0) {
+			throw new ElidomRuntimeException("작업 완료를 해주세요.");
+		}
+		return ValueUtil.newMap("detail,job_id,picked_qty,picking_qty", cell,job.getId(), job.getPickedQty(),job.getPickingQty());
+ 
 	}	
 
 	@Override
@@ -188,7 +226,8 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 				job.setInputAt(nowStr);
 			} 
 			job.setColorCd(LogisConstants.COLOR_RED);
-			this.queryManager.update(job, "inputSeq", "pickingQty", "status", "pickStartedAt", "inputAt", "colorCd");
+			job.setUpdatedAt(new Date());
+			this.queryManager.update(job, "inputSeq", "pickingQty", "status", "pickStartedAt", "inputAt", "updatedAt", "colorCd");
 			
 			// 표시기 점등
 			this.serviceDispatcher.getIndicationService(batch).indicatorOnForPick(job, job.getPickingQty(), 0, 0);
@@ -224,12 +263,13 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		JobInstance job = exeEvent.getJobInstance();
 		job.setPickedQty(job.getPickedQty() + job.getPickingQty());
 		job.setPickingQty(0);
+		job.setUpdatedAt(new Date());
 		
 		if(job.getPickedQty() >= job.getPickQty()) {
 			job.setStatus(LogisConstants.JOB_STATUS_FINISH);
-			this.queryManager.update(job, "pickingQty", "pickedQty","status");
+			this.queryManager.update(job, "pickingQty", "pickedQty","updatedAt","status");
 		}else { 
-			this.queryManager.update(job, "pickingQty", "pickedQty");
+			this.queryManager.update(job, "pickingQty", "pickedQty","updatedAt");
 		} 
 	}
 
@@ -237,9 +277,10 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 	public void cancelAssort(IClassifyRunEvent exeEvent) { 
 		JobInstance job = exeEvent.getJobInstance();
 		
-		job.setPickingQty(0);
+		job.setPickingQty(0); 
+		job.setUpdatedAt(new Date());
 		
-		this.queryManager.update(job, "pickingQty");
+		this.queryManager.update(job, "pickingQty","updatedAt");
 	}
 
 	@Override
@@ -254,12 +295,13 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		
 		job.setPickingQty(0);
 		job.setPickedQty(pickedQty);
+		job.setUpdatedAt(new Date());
 		
 		if(job.getPickedQty() >= job.getPickQty()) { 
 			job.setStatus(LogisConstants.JOB_STATUS_FINISH);
-			this.queryManager.update(job, "pickingQty", "pickedQty","status");
+			this.queryManager.update(job, "pickingQty", "pickedQty", "status","updatedAt");
 		}else {
-			this.queryManager.update(job,  "pickingQty", "pickedQty" );
+			this.queryManager.update(job,  "pickingQty", "pickedQty","updatedAt" );
 		} 
 		return 0;
 	}
@@ -272,31 +314,51 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 
 	@Override
 	public BoxPack fullBoxing(IClassifyRunEvent exeEvent) {
-		JobInstance job = exeEvent.getJobInstance();
-		
+		JobInstance job = exeEvent.getJobInstance(); 
+		String nowStr = DateUtil.currentTimeStr();
+ 
 		int resQty = job.getPickedQty(); // 확정 수량
 		
 		if((job.getPickQty()-resQty)>0 ) {
 			//예정 수량이 미 완료 되었을 경우
 			JobInstance newJob = AnyValueUtil.populate(job, new JobInstance());
 			String newJobId = AnyValueUtil.newUuid36();
-			
+			 
 			newJob.setId(newJobId);
 			newJob.setPickQty(resQty);
 			newJob.setPickingQty(0);
 			newJob.setPickedQty(resQty);
+			newJob.setBoxInQty(resQty);
+			newJob.setBoxTypeCd("");
+			newJob.setBoxedAt(nowStr);
+			newJob.setPickEndedAt(nowStr);
 			newJob.setStatus(LogisConstants.JOB_STATUS_BOXED);
+			newJob.setCreatedAt(new Date());
+			newJob.setUpdatedAt(new Date());
+			
 			this.queryManager.insert(newJob);
 			 
 			job.setPickQty(job.getPickQty()-resQty);
 			job.setPickingQty(0);
-			job.setStatus(LogisConstants.JOB_STATUS_WAIT);
-			this.queryManager.update(job, "pickQty","pickingQty", "status");			
+			job.setPickedQty(0);
+			newJob.setBoxInQty(0);
+			job.setStatus(LogisConstants.JOB_STATUS_WAIT); 
+			job.setUpdatedAt(new Date());
+			
+			this.queryManager.update(job, "pickQty","pickingQty","pickedQty", "status","updatedAt");			
 		}else if((job.getPickQty()-resQty) <= 0) { 
 			//예정 수량이 완료 되었을 경우
 			job.setPickingQty(0);
-			job.setStatus(LogisConstants.JOB_STATUS_BOXED);
-			this.queryManager.update(job, "pickingQty", "status");	
+			job.setPickedQty(resQty);
+			job.setBoxId("");
+			job.setBoxInQty(resQty);
+			job.setBoxTypeCd("");
+			job.setBoxedAt(nowStr);
+			job.setPickEndedAt(nowStr);
+			job.setStatus(LogisConstants.JOB_STATUS_BOXED); 
+			job.setUpdatedAt(new Date());
+			
+			this.queryManager.update(job, "pickingQty","pickedQty","boxId","boxInQty","boxTypeCd","boxedAt", "status","pickEndedAt","updatedAt");	 
 		}
 		
 		return null;
