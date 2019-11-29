@@ -22,6 +22,7 @@ INSERT INTO JOB_INSTANCES (
        PICKED_QTY,
        ORDER_TYPE,
        DOMAIN_ID,
+       STAGE_CD,
        STATUS,
        CREATOR_ID,
        UPDATER_ID,
@@ -52,6 +53,7 @@ SELECT
        	 0 AS PICKED_QTY,
          ORDER_TYPE,
          DOMAIN_ID,
+         STAGE_CD,
          'W',
          'system',
          'system',
@@ -78,4 +80,5 @@ GROUP BY
          INVOICE_ID,
          BOX_IN_QTY,
          ORDER_TYPE,
-         DOMAIN_ID
+         DOMAIN_ID,
+         STAGE_CD

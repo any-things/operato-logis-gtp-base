@@ -345,15 +345,12 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		}else if((job.getPickQty()-resQty) <= 0) { 
 			//2.1 FullBox 처리
 			job.setPickingQty(0);
-			job.setPickedQty(resQty);
-			job.setBoxId("");
-			job.setBoxInQty(resQty);
-			job.setBoxTypeCd("");
+			job.setPickedQty(resQty); 
+			job.setBoxInQty(resQty); 
 			job.setBoxedAt(nowStr);
 			job.setPickEndedAt(nowStr);
 			job.setStatus(LogisConstants.JOB_STATUS_BOXED); 
-			job.setUpdatedAt(new Date());
-			
+			job.setUpdatedAt(new Date()); 
 			this.queryManager.update(job, "pickingQty","pickedQty","boxId","boxInQty","boxTypeCd","boxedAt", "status","pickEndedAt","updatedAt"); 
 		} 
 		
@@ -447,7 +444,7 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		condition.addFilter("batchId",	job.getBatchId());  
 		condition.addFilter("skuCd",	job.getSkuCd());
 		List<Order> sources = this.queryManager.selectListWithLock(Order.class, condition);
-		
+		//box_pack_id
 		List<BoxItem> itemList = new ArrayList<BoxItem>(sources.size());
 		for(Order order : sources) { 
 			BoxItem item = new BoxItem();
