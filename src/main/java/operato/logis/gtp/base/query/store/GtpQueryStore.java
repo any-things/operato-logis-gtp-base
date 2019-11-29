@@ -175,4 +175,13 @@ public class GtpQueryStore extends AbstractQueryStore {
 		return this.getQueryByPath("rtn/rtnInstructionSummaryData");
 	} 
 	
+	/**
+	 * JobInstances 요약 정보 조회
+	 *
+	 * @return
+	 */
+	public String getRtnJobInstancesSummaryDataQuery() {
+		return this.getQueryByPath("rtn/rtnJobInstancesSummaryData");
+	} 
+	
 }

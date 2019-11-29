@@ -234,7 +234,7 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 			this.queryManager.update(job, "inputSeq", "pickingQty", "status", "pickStartedAt", "inputAt", "updatedAt", "colorCd");
 			
 			// 3-2 표시기 점등
-			this.serviceDispatcher.getIndicationService(batch).indicatorOnForPick(job, job.getPickingQty(), 0, 0);
+			this.serviceDispatcher.getIndicationService(batch).indicatorOnForPick(job, 0, job.getPickingQty(), 0);
 			
 		} else {
 			// 처리 가능한 수량 초과.
@@ -354,11 +354,11 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 			this.queryManager.update(job, "pickingQty","pickedQty","boxId","boxInQty","boxTypeCd","boxedAt", "status","pickEndedAt","updatedAt"); 
 		} 
 		
+		//3.2 주문 정보 업데이트 처리
+		this.updateOrderByFullBox(job,resQty);  
+
 		//3.2 BoxItem 생성
 		this.generateBoxItemBy(job, boxPack);	 
-		
-		//3.3 주문 정보 업데이트 처리
-		this.updateOrderByFullBox(job,resQty); 
 		
 		return boxPack;
 		
@@ -443,6 +443,8 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		Query condition = AnyOrmUtil.newConditionForExecution(job.getDomainId());
 		condition.addFilter("batchId",	job.getBatchId());  
 		condition.addFilter("skuCd",	job.getSkuCd());
+		condition.addFilter("boxId",	boxPack.getBoxId());
+		
 		List<Order> sources = this.queryManager.selectListWithLock(Order.class, condition);
 		//box_pack_id
 		List<BoxItem> itemList = new ArrayList<BoxItem>(sources.size());
@@ -554,6 +556,7 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 					source.setStatus(LogisConstants.COMMON_STATUS_RUNNING);
 					totalPickedQty = 0; 
 				}
+				
 				this.queryManager.update(source,"boxId","pickedQty","boxedQty","status","updatedAt");
 			} else {
 				break;
