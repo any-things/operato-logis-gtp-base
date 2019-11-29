@@ -1,17 +1,21 @@
 package operato.logis.gtp.base.service.rtn;
      
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List; 
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-
+ 
 import xyz.anythings.base.LogisCodeConstants;
 import xyz.anythings.base.LogisConstants;
+import xyz.anythings.base.entity.BoxItem;
 import xyz.anythings.base.entity.BoxPack;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.JobConfigSet;
 import xyz.anythings.base.entity.JobInstance;
+import xyz.anythings.base.entity.Order; 
 import xyz.anythings.base.entity.WorkCell;
 import xyz.anythings.base.event.ICategorizeEvent;
 import xyz.anythings.base.event.IClassifyErrorEvent;
@@ -22,8 +26,8 @@ import xyz.anythings.base.event.classfy.ClassifyRunEvent;
 import xyz.anythings.base.model.Category;
 import xyz.anythings.base.service.api.IAssortService;
 import xyz.anythings.base.service.api.IBoxingService;
-import xyz.anythings.base.service.impl.LogisServiceDispatcher;
-import xyz.anythings.sys.service.AbstractExecutionService;
+import xyz.anythings.base.service.impl.LogisServiceDispatcher; 
+import xyz.anythings.sys.service.AbstractExecutionService; 
 import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.anythings.sys.util.AnyValueUtil;
 import xyz.elidom.dbist.dml.Query;
@@ -62,17 +66,16 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		//1. Box 사용여부 체크
 		condition.addFilter("boxTypeCd", LogisConstants.BOX_ID_UNIQUE_SCOPE_GLOBAL);
-		condition.addFilter("boxId",boxId);
-		condition.addFilter("stageCd", batch.getStageCd());
+		condition.addFilter("boxId",boxId); 
 		BoxPack boxPack = this.queryManager.selectByCondition(BoxPack.class, condition);
 		
 	
-//		if(boxPack == null) {
-//			throw new ElidomRuntimeException("박스 정보가 없습니다.");
-//		}else if(boxPack.getStatus()=="W") {
-//			throw new ElidomRuntimeException("이미 사용중인 박스입니다.");
-//		} 
-//		
+		if(boxPack == null) {
+			throw new ElidomRuntimeException("박스 정보가 없습니다.");
+		}else if(boxPack.getStatus()=="W") {
+			throw new ElidomRuntimeException("이미 사용중인 박스입니다.");
+		} 
+		
 		condition.removeFilter("boxTypeCd");
 		condition.removeFilter("boxId");
 		condition.removeFilter("stageCd");
@@ -210,9 +213,10 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		JobInstance job = this.queryManager.selectByCondition(JobInstance.class, condition);
 		Integer pickingQty = job.getPickingQty()+inputQty;
 	 
+		// 3. 작업 인스턴스 정보 업데이트
 		if(job.getPickQty() >= (job.getPickedQty()+pickingQty))
 		{	
-			//배치의 Max Seq 사용
+			//3-1 배치의 Max Seq 사용
 			job.setInputSeq(1);
 			job.setPickingQty(pickingQty);
 			job.setStatus(LogisConstants.JOB_STATUS_PICKING);
@@ -229,14 +233,14 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 			job.setUpdatedAt(new Date());
 			this.queryManager.update(job, "inputSeq", "pickingQty", "status", "pickStartedAt", "inputAt", "updatedAt", "colorCd");
 			
-			// 표시기 점등
+			// 3-2 표시기 점등
 			this.serviceDispatcher.getIndicationService(batch).indicatorOnForPick(job, job.getPickingQty(), 0, 0);
 			
 		} else {
 			// 처리 가능한 수량 초과.
 			throw new ElidomRuntimeException("처리 예정 수량을 초과 했습니다.");
 		} 
-		
+		 
 		return job;
 	}
 
@@ -260,17 +264,23 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 
 	@Override
 	public void confirmAssort(IClassifyRunEvent exeEvent) { 
-		JobInstance job = exeEvent.getJobInstance();
-		job.setPickedQty(job.getPickedQty() + job.getPickingQty());
+		JobInstance job = exeEvent.getJobInstance(); 
+		int resQty = job.getPickingQty(); // 확정 수량  
+		
+		job.setPickedQty(job.getPickedQty() + resQty);
 		job.setPickingQty(0);
 		job.setUpdatedAt(new Date());
 		
+		// 1. 작업 정보 - 확정 업데이트
 		if(job.getPickedQty() >= job.getPickQty()) {
 			job.setStatus(LogisConstants.JOB_STATUS_FINISH);
 			this.queryManager.update(job, "pickingQty", "pickedQty","updatedAt","status");
 		}else { 
 			this.queryManager.update(job, "pickingQty", "pickedQty","updatedAt");
 		} 
+		
+		// 2. 주문 정보 업데이트 처리
+		this.updateOrderByConfirm(job,resQty);
 	}
 
 	@Override
@@ -297,12 +307,17 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		job.setPickedQty(pickedQty);
 		job.setUpdatedAt(new Date());
 		
+		// 1. 작업 정보 - 확정 수량 변경 업데이트
 		if(job.getPickedQty() >= job.getPickQty()) { 
 			job.setStatus(LogisConstants.JOB_STATUS_FINISH);
 			this.queryManager.update(job, "pickingQty", "pickedQty", "status","updatedAt");
 		}else {
 			this.queryManager.update(job,  "pickingQty", "pickedQty","updatedAt" );
 		} 
+		
+		// 2. 주문 정보 업데이트 처리
+		this.updateOrderByConfirm(job,resQty);
+		
 		return 0;
 	}
 
@@ -315,39 +330,20 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 	@Override
 	public BoxPack fullBoxing(IClassifyRunEvent exeEvent) {
 		JobInstance job = exeEvent.getJobInstance(); 
-		String nowStr = DateUtil.currentTimeStr();
- 
-		int resQty = job.getPickedQty(); // 확정 수량
+		String nowStr = DateUtil.currentTimeStr(); 
+		int resQty = exeEvent.getReqQty(); // 확정 수량 
 		
+		// 1. BoxPack 정보 조회
+		Query condition = AnyOrmUtil.newConditionForExecution(job.getDomainId());
+		condition.addFilter("boxId",	job.getBoxId()); 
+		condition.addFilter("batchId",	job.getBatchId());  
+		BoxPack boxPack = this.queryManager.selectByCondition(BoxPack.class, condition);
+				
 		if((job.getPickQty()-resQty)>0 ) {
-			//예정 수량이 미 완료 되었을 경우
-			JobInstance newJob = AnyValueUtil.populate(job, new JobInstance());
-			String newJobId = AnyValueUtil.newUuid36();
-			 
-			newJob.setId(newJobId);
-			newJob.setPickQty(resQty);
-			newJob.setPickingQty(0);
-			newJob.setPickedQty(resQty);
-			newJob.setBoxInQty(resQty);
-			newJob.setBoxTypeCd("");
-			newJob.setBoxedAt(nowStr);
-			newJob.setPickEndedAt(nowStr);
-			newJob.setStatus(LogisConstants.JOB_STATUS_BOXED);
-			newJob.setCreatedAt(new Date());
-			newJob.setUpdatedAt(new Date());
-			
-			this.queryManager.insert(newJob);
-			 
-			job.setPickQty(job.getPickQty()-resQty);
-			job.setPickingQty(0);
-			job.setPickedQty(0);
-			newJob.setBoxInQty(0);
-			job.setStatus(LogisConstants.JOB_STATUS_WAIT); 
-			job.setUpdatedAt(new Date());
-			
-			this.queryManager.update(job, "pickQty","pickingQty","pickedQty", "status","updatedAt");			
+			// 1. FullBox Split 처리
+			job = this.splitJob(job, null, resQty);
 		}else if((job.getPickQty()-resQty) <= 0) { 
-			//예정 수량이 완료 되었을 경우
+			//2.1 FullBox 처리
 			job.setPickingQty(0);
 			job.setPickedQty(resQty);
 			job.setBoxId("");
@@ -358,10 +354,17 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 			job.setStatus(LogisConstants.JOB_STATUS_BOXED); 
 			job.setUpdatedAt(new Date());
 			
-			this.queryManager.update(job, "pickingQty","pickedQty","boxId","boxInQty","boxTypeCd","boxedAt", "status","pickEndedAt","updatedAt");	 
-		}
+			this.queryManager.update(job, "pickingQty","pickedQty","boxId","boxInQty","boxTypeCd","boxedAt", "status","pickEndedAt","updatedAt"); 
+		} 
 		
-		return null;
+		//3.2 BoxItem 생성
+		this.generateBoxItemBy(job, boxPack);	 
+		
+		//3.3 주문 정보 업데이트 처리
+		this.updateOrderByFullBox(job,resQty); 
+		
+		return boxPack;
+		
 	}
 
 	@Override
@@ -377,9 +380,41 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 	}
 
 	@Override
-	public JobInstance splitJob(JobInstance job, WorkCell workCell, int splitQty) {
-		// TODO Auto-generated method stub
-		return null;
+	public JobInstance splitJob(JobInstance job, WorkCell workCell, int splitQty) { 
+		
+		JobInstance newJob = AnyValueUtil.populate(job, new JobInstance());
+		String newJobId = AnyValueUtil.newUuid36(); 
+		String nowStr = DateUtil.currentTimeStr();
+		int pickedQty = job.getPickedQty()-splitQty;
+		
+		//1.1 Split Job 처리
+		newJob.setId(newJobId);
+		newJob.setPickQty(splitQty);
+		newJob.setPickingQty(0);
+		newJob.setPickedQty(splitQty);
+		newJob.setBoxInQty(splitQty); 
+		newJob.setBoxedAt(nowStr);
+		newJob.setPickEndedAt(nowStr);
+		newJob.setStatus(LogisConstants.JOB_STATUS_BOXED);
+		newJob.setCreatedAt(new Date());
+		newJob.setUpdatedAt(new Date());
+ 
+		this.queryManager.insert(newJob);
+		 
+		job.setPickQty(job.getPickQty()-splitQty);
+		job.setPickingQty(0);
+		job.setPickedQty(pickedQty);
+		job.setBoxInQty(0);
+		if(pickedQty>0) {
+			job.setStatus(LogisConstants.JOB_STATUS_PICKING); 
+		}else { 
+			job.setStatus(LogisConstants.JOB_STATUS_WAIT); 
+		}
+		job.setUpdatedAt(new Date());
+		
+		this.queryManager.update(job, "pickQty","pickingQty","pickedQty", "status","updatedAt");	
+		
+		return newJob;
 	}
 
 	@Override
@@ -398,6 +433,135 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 	public boolean finishAssortCell(JobInstance job, WorkCell workCell, boolean finalEndFlag) {
 		// TODO Auto-generated method stub
 		return false;
+	}
+	
+	/**
+	 * 작업 정보 기준으로 BoxItem 생성
+	 *
+	 * @param job
+	 * @param boxPack
+	 */
+	public void generateBoxItemBy(JobInstance job, BoxPack boxPack) {
+		// 1. 주문정보 조회
+		Query condition = AnyOrmUtil.newConditionForExecution(job.getDomainId());
+		condition.addFilter("batchId",	job.getBatchId());  
+		condition.addFilter("skuCd",	job.getSkuCd());
+		List<Order> sources = this.queryManager.selectListWithLock(Order.class, condition);
+		
+		List<BoxItem> itemList = new ArrayList<BoxItem>(sources.size());
+		for(Order order : sources) { 
+			BoxItem item = new BoxItem();
+			item.setBoxPackId(boxPack.getId());
+			item.setOrderId(order.getId());
+			item.setOrderNo(order.getOrderNo());
+			item.setOrderLineNo(order.getOrderLineNo());
+			item.setOrderDetailId(order.getOrderDetailId());
+			item.setComCd(order.getComCd());
+			item.setShopCd(order.getShopCd());
+			item.setSkuCd(order.getSkuCd());
+			item.setSkuNm(order.getSkuNm());
+			item.setPackType(order.getPackType());
+			item.setPickedQty(order.getPickedQty());
+			item.setCancelQty(order.getCancelQty());
+			item.setCancelQty(order.getCancelQty());
+			item.setDomainId(order.getDomainId());
+			
+			itemList.add(item);
+		}
+		 
+		AnyOrmUtil.insertBatch(itemList, 100);
+	}
+	
+	/**
+	 * 주문 정보를 작업 정보 토대로 업데이트
+	 *
+	 * @param job
+	 */
+	private void updateOrderByConfirm(JobInstance job, int totalPickedQty) {
+		// 1. 주문정보 조회
+		List<String> statuses = ValueUtil.newStringList(LogisConstants.COMMON_STATUS_RUNNING, LogisConstants.COMMON_STATUS_WAIT);
+		
+		Query condition = AnyOrmUtil.newConditionForExecution(job.getDomainId());
+		condition.addFilter("batchId",			job.getBatchId()); 
+		condition.addFilter("skuCd",			job.getSkuCd());
+		condition.addFilter("status",	"in",	statuses);
+
+		condition.addOrder("orderQty",	true);
+		condition.addOrder("pickedQty",	false);
+		condition.addOrder("shopCd",	true);
+		
+		List<Order> sources = this.queryManager.selectListWithLock(Order.class, condition);   
+ 		
+		for(Order source : sources) {
+			if(totalPickedQty > 0) {
+				int orderQty = source.getOrderQty();
+				int pickedQty = source.getPickedQty();
+				int remainQty = orderQty - pickedQty;
+				
+				// 1) 주문 라인 분류 종료
+				if(totalPickedQty >= remainQty) {
+					source.setPickedQty(source.getPickedQty() + remainQty);
+					source.setStatus(LogisConstants.COMMON_STATUS_FINISHED);  
+					totalPickedQty = totalPickedQty - remainQty;
+					
+				// 2) 주문 처리 수량 업데이트
+				} else if(remainQty > totalPickedQty) {
+					source.setPickedQty(source.getPickedQty() + totalPickedQty);
+					totalPickedQty = 0; 
+				} 
+				
+				source.setUpdatedAt(new Date());
+				this.queryManager.update(source, "pickedQty","boxedQty","status","updatedAt");
+			} else {
+				break;
+			}			
+		}
+	}
+	
+	/**
+	 * 주문 정보를 작업 정보 토대로 업데이트
+	 *
+	 * @param job
+	 */
+	private void updateOrderByFullBox(JobInstance job,int totalPickedQty) {
+		// 1. 주문정보 조회
+		Query condition = AnyOrmUtil.newConditionForExecution(job.getDomainId());
+		condition.addFilter("batchId",	job.getBatchId()); 
+		condition.addFilter("skuCd",	job.getSkuCd());
+		
+		condition.addOrder("orderQty",	true);
+		condition.addOrder("pickedQty",	false);
+		condition.addOrder("shopCd",	true);
+		
+		List<Order> sources = this.queryManager.selectListWithLock(Order.class, condition);
+ 		
+ 		String boxId = job.getBoxId(); 
+ 		
+		for(Order source : sources) { 
+			if(totalPickedQty > 0) {
+				int orderQty = source.getOrderQty();
+				int boxedQty = source.getBoxedQty();
+				int remainQty = orderQty - boxedQty;
+				
+				// 1) 주문 라인 분류 종료
+				if(totalPickedQty >= remainQty) {
+					source.setBoxId(boxId);
+					source.setBoxedQty(source.getBoxedQty() + remainQty);
+					source.setStatus(LogisConstants.COMMON_STATUS_FINISHED);
+					totalPickedQty = totalPickedQty - remainQty;
+					
+				// 2) 주문 처리 수량 업데이트
+				} else if(remainQty > totalPickedQty) {
+					source.setBoxId(boxId);
+					source.setBoxedQty(source.getBoxedQty() + totalPickedQty);
+					source.setStatus(LogisConstants.COMMON_STATUS_RUNNING);
+					totalPickedQty = 0; 
+				}
+				this.queryManager.update(source,"boxId","pickedQty","boxedQty","status","updatedAt");
+			} else {
+				break;
+			}
+		}; 
 	}
 
 }
