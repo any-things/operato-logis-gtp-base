@@ -33,6 +33,11 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 	 */
 	@Autowired
 	private IndicatorDispatcher indicatorDispatcher;
+	/**
+	 * 표시기 관련 쿼리 스토어
+	 */
+	@Autowired
+	private IndicatorQueryStore indQueryStore;
 
 	@Override
 	public IIndRequestService getIndicatorRequestService(JobBatch batch) {
@@ -219,11 +224,10 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 	 */
 	@SuppressWarnings("rawtypes")
 	public void setIndInfoToJob(JobInstance job) {
-		IndicatorQueryStore indQueryStore = BeanUtil.get(IndicatorQueryStore.class);
-		String sql = indQueryStore.getSearchIndicatorsQuery();
+		String sql = this.indQueryStore.getSearchIndicatorsQuery();
 		Map<String, Object> params = ValueUtil.newMap("domainId,stageCd,activeFlag,rackCd,indQueryFlag", job.getDomainId(), job.getStageCd(), true, job.getEquipCd(), true);
 		List<Map> indList = this.queryManager.selectListBySql(sql, params, Map.class, 0, 0);
-		Map indicator = ValueUtil.isNotEmpty(indList.get(0)) ? indList.get(0) : null;
+		Map indicator = ValueUtil.isNotEmpty(indList) ? indList.get(0) : null;
 		
 		if(indicator != null) {
 			job.setIndCd(ValueUtil.toString(indicator.get("ind_cd")));
