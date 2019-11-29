@@ -208,7 +208,6 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 		boolean idxGoForward = true;
 		int rackIdx = 0;
 		int rackEndIdx = rackCells.size();
-		String checkRack = "";
 				
 		// 5. 주문 가공별로 루프
 		for(OrderPreprocess preprocess : items) {

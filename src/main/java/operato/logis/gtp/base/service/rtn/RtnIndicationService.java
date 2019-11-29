@@ -18,7 +18,6 @@ import xyz.anythings.gw.service.api.IIndRequestService;
 import xyz.anythings.sys.service.AbstractExecutionService;
 import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.elidom.sys.util.ValueUtil;
-import xyz.elidom.util.BeanUtil;
 
 /**
  * 반품 점, 소등 표시기 서비스
