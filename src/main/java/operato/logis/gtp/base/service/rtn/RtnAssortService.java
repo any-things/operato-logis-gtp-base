@@ -26,7 +26,8 @@ import xyz.anythings.base.event.classfy.ClassifyRunEvent;
 import xyz.anythings.base.model.Category;
 import xyz.anythings.base.service.api.IAssortService;
 import xyz.anythings.base.service.api.IBoxingService;
-import xyz.anythings.base.service.impl.LogisServiceDispatcher; 
+import xyz.anythings.base.service.impl.LogisServiceDispatcher;
+import xyz.anythings.base.service.util.BatchJobConfigUtil;
 import xyz.anythings.sys.service.AbstractExecutionService; 
 import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.anythings.sys.util.AnyValueUtil;
@@ -63,24 +64,33 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 	
 	@Override
 	public Object boxCellMapping(JobBatch batch, String cellCd, String boxId) {
+		// 1. Box 사용여부 체크
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
-		//1. Box 사용여부 체크
-		condition.addFilter("boxTypeCd", LogisConstants.BOX_ID_UNIQUE_SCOPE_GLOBAL);
-		condition.addFilter("boxId",boxId); 
+		String boxIdUniqueScope = BatchJobConfigUtil.getBoxIdUniqueScope(batch);
+		
+		switch(boxIdUniqueScope) {
+			case LogisConstants.BOX_ID_UNIQUE_SCOPE_GLOBAL :
+				condition.addFilter("boxId", boxId);
+				break;
+				
+			case LogisConstants.BOX_ID_UNIQUE_SCOPE_DAY :
+				condition.addFilter("jobDate", batch.getJobDate());
+				condition.addFilter("boxId", boxId);
+				break;
+				
+			case LogisConstants.BOX_ID_UNIQUE_SCOPE_BATCH :
+				condition.addFilter("batchId", batch.getId());
+				condition.addFilter("boxId", boxId);
+				break;
+		}
+		
 		BoxPack boxPack = this.queryManager.selectByCondition(BoxPack.class, condition);
-		
-	
-		if(boxPack == null) {
-			throw new ElidomRuntimeException("박스 정보가 없습니다.");
-		}else if(boxPack.getStatus()=="W") {
-			throw new ElidomRuntimeException("이미 사용중인 박스입니다.");
+		if(boxPack != null) {
+			throw new ElidomRuntimeException("박스 ID [" + boxId + "]는 이미 사용한 박스입니다.");
 		} 
-		
-		condition.removeFilter("boxTypeCd");
-		condition.removeFilter("boxId");
-		condition.removeFilter("stageCd");
-		
+				
 		// 2. 작업 WorkCell 조회
+		condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		condition.addFilter("batchId", batch.getId());
 		condition.addFilter("cellCd", cellCd);
 		
@@ -89,17 +99,17 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		
 		condition.removeFilter("cellCd");
 		
-		//3. JobInstance 정보 조회
+		// 3. JobInstance 정보 조회
 		condition.addSelect("id","picked_qty","picking_qty");
 		condition.addFilter("subEquipCd", cellCd); 
-		condition.addFilter("status","in", LogisConstants.JOB_STATUS_PF); 
+		condition.addFilter("status", "in", LogisConstants.JOB_STATUS_PF);
 		JobInstance job = this.queryManager.selectByCondition(JobInstance.class, condition);
 		
-		if(job.getPickingQty()>0) {
-			throw new ElidomRuntimeException("작업 완료를 해주세요.");
+		if(job.getPickingQty() > 0) {
+			throw new ElidomRuntimeException("완료되지 않은 작업이 있습니다.");
 		}
-		return ValueUtil.newMap("detail,job_id,picked_qty,picking_qty", cell,job.getId(), job.getPickedQty(),job.getPickingQty());
- 
+		
+		return ValueUtil.newMap("detail,job_id,picked_qty,picking_qty", cell, job.getId(), job.getPickedQty(), job.getPickingQty());
 	}	
 
 	@Override

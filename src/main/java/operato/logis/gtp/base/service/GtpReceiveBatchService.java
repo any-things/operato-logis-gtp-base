@@ -163,7 +163,7 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 	 * @return
 	 */
 	private BatchReceipt startToReceiveData(BatchReceipt receipt, BatchReceiptItem item, Object ... params) {		
-		// TODO : 데이터 복사 방식 / 컬럼 설정에서 가져오기 
+		// 1. TODO : 데이터 복사 방식 / 컬럼 설정에서 가져오기 
 		String[] sourceFields = {"WMS_BATCH_NO", "WCS_BATCH_NO", "JOB_DATE", "JOB_SEQ", "JOB_TYPE", "ORDER_DATE", "ORDER_NO", "ORDER_LINE_NO", "ORDER_DETAIL_ID", "CUST_ORDER_NO", "CUST_ORDER_LINE_NO", "COM_CD", "AREA_CD", "STAGE_CD", "EQUIP_TYPE", "EQUIP_CD", "EQUIP_NM", "SUB_EQUIP_CD", "SHOP_CD", "SHOP_NM", "SKU_CD", "SKU_BARCD", "SKU_NM", "BOX_TYPE_CD", "BOX_IN_QTY", "ORDER_QTY", "PICKED_QTY", "BOXED_QTY", "CANCEL_QTY", "BOX_ID", "INVOICE_ID", "ORDER_TYPE", "CLASS_CD", "PACK_TYPE", "VEHICLE_NO", "LOT_NO", "FROM_ZONE_CD", "FROM_CELL_CD", "TO_ZONE_CD", "TO_CELL_CD"};
 		String[] targetFields = {"WMS_BATCH_NO", "WCS_BATCH_NO", "JOB_DATE", "JOB_SEQ", "JOB_TYPE", "ORDER_DATE", "ORDER_NO", "ORDER_LINE_NO", "ORDER_DETAIL_ID", "CUST_ORDER_NO", "CUST_ORDER_LINE_NO", "COM_CD", "AREA_CD", "STAGE_CD", "EQUIP_TYPE", "EQUIP_CD", "EQUIP_NM", "SUB_EQUIP_CD", "SHOP_CD", "SHOP_NM", "SKU_CD", "SKU_BARCD", "SKU_NM", "BOX_TYPE_CD", "BOX_IN_QTY", "ORDER_QTY", "PICKED_QTY", "BOXED_QTY", "CANCEL_QTY", "BOX_ID", "INVOICE_ID", "ORDER_TYPE", "CLASS_CD", "PACK_TYPE", "VEHICLE_NO", "LOT_NO", "FROM_ZONE_CD", "FROM_CELL_CD", "TO_ZONE_CD", "TO_CELL_CD"};
 		String fieldNames = "COM_CD,AREA_CD,STAGE_CD,WMS_BATCH_NO,IF_FLAG";
@@ -177,14 +177,19 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 				return receipt;
 			}
 						
-			// 4. BatchReceiptItem 상태 업데이트  - 진행 중 
+			// 3. BatchReceiptItem 상태 업데이트  - 진행 중 
 			item.updateStatusImmediately(LogisConstants.COMMON_STATUS_RUNNING, null);
 			
-			// 5. JobBatch 생성 
+			// 4. JobBatch 생성 
 			JobBatch batch = JobBatch.createJobBatch(item.getBatchId(), item.getJobSeq(), receipt, item);
 			
-			// 6. 데이터 복사  
+			// 5. 데이터 복사  
 			this.cloneData(item.getBatchId(), jobSeq, "wms_if_orders", sourceFields, targetFields, fieldNames, item.getComCd(), item.getAreaCd(), item.getStageCd(), item.getWmsBatchNo(), LogisConstants.N_CAP_STRING);
+			
+			// 6. 셀과 매핑될 필드명을 스테이지 별 설정에서 조회 
+			/*String classCd = StageJobConfigUtil.getCellMappingTargetField(item.getStageCd(), item.getJobType());
+			String sql = "update orders set class_cd = :classCd where domain_id = :domainId and batch_id = :batchId";
+			this.queryManager.executeBySql(sql, ValueUtil.newMap("domainId,batchId,classCd", item.getDomainId(), item.getBatchId(), classCd));*/
 			
 			// 7. JobBatch 상태 변경  
 			batch.updateStatusImmediately(LogisConstants.isB2CJobType(batch.getJobType())? JobBatch.STATUS_READY : JobBatch.STATUS_WAIT);
@@ -192,7 +197,7 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 			// 8. batchReceiptItem 상태 업데이트 
 			item.updateStatusImmediately(LogisConstants.COMMON_STATUS_FINISHED, null);
 			
-			//9.Wms_if_order 상태 업데이트
+			// 9.Wms_if_order 상태 업데이트
 			this.updateWmfIfToReceiptItems(item,receipt.getJobDate());
 			
 		} catch(Exception e) {
@@ -202,7 +207,7 @@ public class GtpReceiveBatchService extends AbstractQueryService {
 			item.updateStatusImmediately(LogisConstants.COMMON_STATUS_ERROR, errMsg);
 		}
 		
-		// 9. 에러 발생인 경우 수신 상태 에러로 업데이트
+		// 10. 에러 발생인 경우 수신 상태 에러로 업데이트
 		if(exceptionOccurred) {
 			receipt.updateStatusImmediately(LogisConstants.COMMON_STATUS_ERROR);
 		}
