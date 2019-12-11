@@ -187,7 +187,7 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		condition.addFilter("pickingQty", ">=", 1);
 		
 		if(this.queryManager.selectSize(JobInstance.class, condition) > 0) { 
-			throw new ElidomRuntimeException("투입된 이후 확정 처리를 안 한 셀이 있습니다.");
+			throw new ElidomRuntimeException("투입 이후 확정 처리를 안 한 셀이 있습니다.");
 		}
 		
 		// 2. 작업 인스턴스 조회 
@@ -285,7 +285,6 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		} else {
 			job.setPickingQty(0);
 			this.queryManager.update(job, "pickingQty", "updatedAt");
-			
 			// 다음 작업 처리
 			this.doNextJob(job, exeEvent.getWorkCell(), this.checkCellAssortEnd(job, false));			
 		}
@@ -387,6 +386,7 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		WorkCell cell = AnyEntityUtil.findEntityBy(domainId, true, WorkCell.class, "domainId,batchId,cellCd", box.getDomainId(), box.getBatchId(), box.getSubEquipCd());
 		this.doNextJob(job, cell, this.checkCellAssortEnd(job, false));
 		
+		// 4. 박스 리턴
 		return boxPack;
 	}
 
@@ -428,20 +428,17 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 	 * @param job
 	 * @param cell
 	 * @param cellEndFlag
-	 * @return
 	 */
-	protected boolean doNextJob(JobInstance job, WorkCell cell, boolean cellEndFlag) {
+	protected void doNextJob(JobInstance job, WorkCell cell, boolean cellEndFlag) {
 		// 1. 해당 로케이션의 작업이 모두 완료 상태인지 체크 
 		if(cellEndFlag) {
-			return this.finishAssortCell(job, cell, cellEndFlag);
+			this.finishAssortCell(job, cell, cellEndFlag);
 			
 		// 2. 현재 로케이션에 존재하는 '피킹 시작' 상태 작업의 '피킹 중 수량' 정보를 조회하여 표시기 재점등
 		} else {
 			if(job.getPickingQty() > 0) {
 				this.serviceDispatcher.getIndicationService(job).indicatorOnForPick(job, 0, job.getPickingQty(), 0);
 			}
-			
-			return true;
 		}
 	}
 	
