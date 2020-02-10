@@ -11,7 +11,6 @@ import xyz.anythings.base.LogisCodeConstants;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.BoxPack;
 import xyz.anythings.base.entity.JobBatch;
-import xyz.anythings.base.entity.JobConfigSet;
 import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.entity.Order;
 import xyz.anythings.base.entity.WorkCell;
@@ -25,10 +24,9 @@ import xyz.anythings.base.event.classfy.ClassifyRunEvent;
 import xyz.anythings.base.model.Category;
 import xyz.anythings.base.service.api.IAssortService;
 import xyz.anythings.base.service.api.IBoxingService;
-import xyz.anythings.base.service.impl.LogisServiceDispatcher;
+import xyz.anythings.base.service.impl.AbstractClassificationService;
 import xyz.anythings.base.service.util.BatchJobConfigUtil;
 import xyz.anythings.gw.entity.Indicator;
-import xyz.anythings.sys.service.AbstractExecutionService;
 import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.anythings.sys.util.AnyValueUtil;
@@ -47,14 +45,8 @@ import xyz.elidom.util.ValueUtil;
  * @author shortstop
  */
 @Component("rtnAssortService")
-public class RtnAssortService extends AbstractExecutionService implements IAssortService {
+public class RtnAssortService extends AbstractClassificationService implements IAssortService {
 
-	/**
-	 * 서비스 디스패처
-	 */
-	@Autowired
-	private LogisServiceDispatcher serviceDispatcher;
-	
 	/**
 	 * 박스 서비스
 	 */
@@ -66,11 +58,6 @@ public class RtnAssortService extends AbstractExecutionService implements IAssor
 		return LogisConstants.JOB_TYPE_RTN;
 	}
 
-	@Override
-	public JobConfigSet getJobConfigSet(String batchId) {
-		return this.serviceDispatcher.getConfigSetService().getConfigSet(batchId);
-	}
-	
 	@Override
 	public IBoxingService getBoxingService(Object... params) {
 		return this.boxService;
