@@ -48,7 +48,7 @@ public class RtnBoxingService extends AbstractExecutionService implements IBoxin
 	public Object assignBoxToCell(JobBatch batch, String cellCd, String boxId, Object... params) {
 		// 1. Box 사용 여부 체크
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
-		String boxIdUniqueScope = BatchJobConfigUtil.getBoxIdUniqueScope(batch);
+		String boxIdUniqueScope = BatchJobConfigUtil.getBoxIdUniqueScope(batch, LogisConstants.BOX_ID_UNIQUE_SCOPE_GLOBAL);
 		
 		switch(boxIdUniqueScope) {
 			case LogisConstants.BOX_ID_UNIQUE_SCOPE_GLOBAL :

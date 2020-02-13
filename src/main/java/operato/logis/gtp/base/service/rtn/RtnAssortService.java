@@ -104,7 +104,7 @@ public class RtnAssortService extends AbstractClassificationService implements I
 			return LogisCodeConstants.INPUT_TYPE_IND_CD;
 			
 		} else {
-			throw new ElidomRuntimeException("스캔한 정보는 어떤 코드인지 구분할 수 없습니다.");
+			throw new ElidomRuntimeException("스캔한 정보는 어떤 코드 유형 인지 구분할 수 없습니다.");
 		}
 	}
 
