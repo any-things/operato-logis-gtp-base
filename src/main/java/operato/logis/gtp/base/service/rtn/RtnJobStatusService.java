@@ -1,6 +1,7 @@
 package operato.logis.gtp.base.service.rtn;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
@@ -38,14 +39,28 @@ public class RtnJobStatusService extends AbstractJobStatusService {
 		// TODO Auto-generated method stub
 		return null;
 	}
+	
+	@Override
+	public List<JobInstance> searchInputJobList(JobBatch batch, Map<String, Object> condition) {
+		// TODO Auto-generated method stub
+		return null;
+	}
 
 	@Override
-	public List<JobInstance> searchPickingJobList(JobBatch batch, String stationCd) {
+	public List<JobInstance> searchPickingJobList(JobBatch batch, String stationCd, String classCd) {
+		// TODO 표시기 점등을 위해 GW, IND 정보까지 모두 한꺼번에 조회 필요 - 참조 DpsJobStatusService.searchPickingJobList
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		condition.addFilter("batchId", batch.getId());
 		condition.addFilter("status", LogisConstants.JOB_STATUS_PICKING);
+		condition.addFilter("classCd", classCd);
 		condition.addFilter("pickingQty", ">=", 1);
 		return this.queryManager.selectList(JobInstance.class, condition);
+	}
+
+	@Override
+	public List<JobInstance> searchPickingJobList(JobBatch batch, Map<String, Object> condition) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 }

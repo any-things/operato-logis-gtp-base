@@ -46,7 +46,7 @@ public class OperatoLogisGtpBaseInitializer {
 	private IQueryManager queryManager;
 	
 	@Autowired
-	private GtpQueryStore batchQueryStore;
+	private GtpQueryStore gtpQueryStore;
 	
 	@EventListener({ ContextRefreshedEvent.class })
 	public void refresh(ContextRefreshedEvent event) {
@@ -79,7 +79,7 @@ public class OperatoLogisGtpBaseInitializer {
 	 */
 	private void initQueryStores() {
 		String dbType = this.queryManager.getDbType();
-		this.batchQueryStore.initQueryStore(dbType);
+		this.gtpQueryStore.initQueryStore(dbType);
 	}
 	
 }
