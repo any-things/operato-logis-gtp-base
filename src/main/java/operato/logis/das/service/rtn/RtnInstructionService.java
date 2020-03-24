@@ -1,4 +1,4 @@
-package operato.logis.gtp.base.service.rtn;
+package operato.logis.das.service.rtn;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -6,9 +6,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component; 
+import org.springframework.stereotype.Component;
 
-import operato.logis.gtp.base.query.store.GtpQueryStore;
+import operato.logis.das.query.store.DasQueryStore;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.Order;
@@ -34,7 +34,7 @@ import xyz.elidom.util.ValueUtil;
 public class RtnInstructionService  extends AbstractQueryService  implements IInstructionService{
 
 	@Autowired
-	private GtpQueryStore QueryStore;
+	private DasQueryStore QueryStore;
 	
 	@Override
 	public Map<String, Object> searchInstructionData(JobBatch batch, Object... params) {

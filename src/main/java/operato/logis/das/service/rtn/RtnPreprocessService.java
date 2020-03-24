@@ -1,4 +1,4 @@
-package operato.logis.gtp.base.service.rtn;
+package operato.logis.das.service.rtn;
 
 import java.util.List;
 import java.util.Map;
@@ -6,12 +6,12 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import operato.logis.gtp.base.GtpBaseConstants;
-import operato.logis.gtp.base.query.store.GtpQueryStore;
-import operato.logis.gtp.base.service.model.OrderGroup;
-import operato.logis.gtp.base.service.model.RackCells;
-import operato.logis.gtp.base.service.model.RtnPreprocessStatus;
-import operato.logis.gtp.base.service.model.RtnPreprocessSummary;
+import operato.logis.das.DasConstants;
+import operato.logis.das.query.store.DasQueryStore;
+import operato.logis.das.service.model.OrderGroup;
+import operato.logis.das.service.model.RackCells;
+import operato.logis.das.service.model.RtnPreprocessStatus;
+import operato.logis.das.service.model.RtnPreprocessSummary;
 import xyz.anythings.base.entity.Cell;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.Order;
@@ -44,7 +44,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	 * 쿼리 스토어
 	 */
 	@Autowired
-	private GtpQueryStore queryStore;
+	private DasQueryStore queryStore;
 	
 	@Override
 	public Map<String, ?> buildPreprocessSet(JobBatch batch, Query query) {
@@ -284,11 +284,11 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 		String classCd = AnyValueUtil.getFilterValue(query, "class_cd");
 
 		if(AnyValueUtil.isEmpty(rackCd)) {
-			rackCd = GtpBaseConstants.ALL_CAPITAL_STR;
+			rackCd = DasConstants.ALL_CAPITAL_STR;
 		}
 		
 		if(AnyValueUtil.isEmpty(classCd)) {
-			classCd = GtpBaseConstants.ALL_CAPITAL_STR;
+			classCd = DasConstants.ALL_CAPITAL_STR;
 		}
 
 		Map<String,Object> params =

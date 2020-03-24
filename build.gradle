@@ -21,7 +21,7 @@ jar {
    }
 
 	manifest {
-		attributes 'Implementation-Title': 'Operato Logis GTP Base',
+		attributes 'Implementation-Title': 'Operato Logis DAS',
 				   'Implementation-Version': version
 	}
 }

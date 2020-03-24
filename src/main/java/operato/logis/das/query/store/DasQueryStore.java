@@ -1,4 +1,4 @@
-package operato.logis.gtp.base.query.store;
+package operato.logis.das.query.store;
 
 import org.springframework.stereotype.Component;
 
@@ -11,13 +11,13 @@ import xyz.elidom.sys.SysConstants;
  * @author shortstop
  */
 @Component
-public class GtpQueryStore extends AbstractQueryStore {
+public class DasQueryStore extends AbstractQueryStore {
 
 	@Override
 	public void initQueryStore(String databaseType) {
 		this.databaseType = databaseType;
-		this.basePath = "operato/logis/gtp/base/query/" + this.databaseType + SysConstants.SLASH;
-		this.defaultBasePath = "operato/logis/base/base/query/ansi/"; 
+		this.basePath = "operato/logis/das/query/" + this.databaseType + SysConstants.SLASH;
+		this.defaultBasePath = "operato/logis/das/query/ansi/"; 
 	}
 	
 	/*** BatchReceipt 관련 데이터 쿼리 ***/

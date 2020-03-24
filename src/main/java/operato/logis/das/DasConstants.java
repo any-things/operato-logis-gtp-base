@@ -1,4 +1,4 @@
-package operato.logis.gtp.base;
+package operato.logis.das;
 
 import xyz.anythings.base.LogisConstants;
 
@@ -7,7 +7,7 @@ import xyz.anythings.base.LogisConstants;
  * 
  * @author shortstop
  */
-public class GtpBaseConstants extends LogisConstants {		
+public class DasConstants extends LogisConstants {		
 	/**
 	 * ALL
 	 */

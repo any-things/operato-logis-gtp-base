@@ -1,4 +1,4 @@
-package operato.logis.gtp.base.service.model;
+package operato.logis.das.service.model;
 
 public class RackCells {
 

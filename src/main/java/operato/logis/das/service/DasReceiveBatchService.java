@@ -1,4 +1,4 @@
-package operato.logis.gtp.base.service;
+package operato.logis.das.service;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import operato.logis.gtp.base.query.store.GtpQueryStore;
+import operato.logis.das.query.store.DasQueryStore;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.BatchReceipt;
 import xyz.anythings.base.entity.BatchReceiptItem;
@@ -36,13 +36,13 @@ import xyz.elidom.util.ValueUtil;
  * @author shortstop
  */
 @Component
-public class GtpReceiveBatchService extends AbstractQueryService {
+public class DasReceiveBatchService extends AbstractQueryService {
 	
 	/**
 	 * 반품 관련 쿼리 스토어 
 	 */
 	@Autowired
-	private GtpQueryStore batchQueryStore;
+	private DasQueryStore batchQueryStore;
 
 	/**
 	 * 주문 정보 수신을 위한 수신 서머리 정보 조회
