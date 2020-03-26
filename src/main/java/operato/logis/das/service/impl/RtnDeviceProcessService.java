@@ -2,13 +2,11 @@ package operato.logis.das.service.impl;
 
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import operato.logis.das.query.store.DasQueryStore;
 import xyz.anythings.base.entity.Rack;
 import xyz.anythings.base.event.rest.DeviceProcessRestEvent;
 import xyz.anythings.sys.service.AbstractExecutionService;
@@ -18,12 +16,13 @@ import xyz.elidom.sys.entity.Domain;
 import xyz.elidom.sys.util.ThrowUtil;
 import xyz.elidom.util.ValueUtil;
 
-
+/**
+ * 반품 장비로 부터의 요청을 처리하는 서비스 
+ * 
+ * @author shortstop
+ */
 @Component("rtnDeviceProcessService")
 public class RtnDeviceProcessService extends AbstractExecutionService{
-	
-	@Autowired
-	DasQueryStore gtpQueryStore;
 	
 	/**
 	 * 슈트 정보를 받아서 유효한 지 체크한 후 호기/슈트 정보를 리턴

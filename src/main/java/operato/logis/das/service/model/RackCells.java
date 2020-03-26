@@ -1,7 +1,11 @@
 package operato.logis.das.service.model;
 
+/**
+ * 랙 - 셀 관계 정보
+ * 
+ * @author shortstop
+ */
 public class RackCells {
-
 	/**
 	 * 호기 코드 
 	 */
@@ -37,14 +41,12 @@ public class RackCells {
 	public RackCells() {
 	}
 	
-	
 	/**
 	 * 생성자
 	 * 
-	 * @param chuteNo
 	 * @param rackCd
 	 * @param rackNm
-	 * @param regionType
+	 * @param rackType
 	 * @param remainCells
 	 * @param assignedCells
 	 * @param assignedSku

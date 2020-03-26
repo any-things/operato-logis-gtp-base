@@ -1,12 +1,34 @@
 package operato.logis.das.service.model;
 
+/**
+ * 반품 주문가공 서머리
+ * 
+ * @author shortstop
+ */
 public class RtnPreprocessSummary {
-
+	/**
+	 * 총 SKU 수
+	 */
 	private String totalSkus;
+	/**
+	 * 할당된 SKU 수
+	 */
 	private String assignedSku;
+	/**
+	 * 남은 SKU 수
+	 */
 	private String remainSku;
+	/**
+	 * 총 주문 PCS
+	 */
 	private String totalOrdersPcs;
+	/**
+	 * 할당된 PCS
+	 */
 	private String assignedPcs;
+	/**
+	 * 남은 PCS
+	 */
 	private String remainPcs;
 	
 	public String getTotalSkus() {
@@ -56,7 +78,5 @@ public class RtnPreprocessSummary {
 	public void setRemainPcs(String remainPcs) {
 		this.remainPcs = remainPcs;
 	}
-	
-	
-	
+
 }

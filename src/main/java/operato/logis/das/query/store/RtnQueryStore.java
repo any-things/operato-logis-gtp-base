@@ -6,12 +6,12 @@ import xyz.anythings.sys.service.AbstractQueryStore;
 import xyz.elidom.sys.SysConstants;
 
 /**
- * 반품 프로세스
+ * 반품용 쿼리 스토어
  * 
  * @author shortstop
  */
 @Component
-public class DasQueryStore extends AbstractQueryStore {
+public class RtnQueryStore extends AbstractQueryStore {
 
 	@Override
 	public void initQueryStore(String databaseType) {
@@ -184,4 +184,12 @@ public class DasQueryStore extends AbstractQueryStore {
 		return this.getQueryByPath("rtn/rtnJobInstancesSummaryData");
 	} 
 	
+	/**
+	 * 피킹 작업 현황 조회
+	 * 
+	 * @return
+	 */
+	public String getSearchPickingJobListQuery() {
+		return this.getQueryByPath("pick/SearchPickingJobList");
+	}
 }

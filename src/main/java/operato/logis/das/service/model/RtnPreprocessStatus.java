@@ -1,7 +1,11 @@
 package operato.logis.das.service.model;
 
+/**
+ * 반품 주문 가공 정보
+ * 
+ * @author shortstop
+ */
 public class RtnPreprocessStatus {
-
 	/**
 	 * 상품 코드 
 	 */

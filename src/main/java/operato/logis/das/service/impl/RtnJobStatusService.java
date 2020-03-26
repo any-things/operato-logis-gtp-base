@@ -3,16 +3,17 @@ package operato.logis.das.service.impl;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import operato.logis.das.query.store.RtnQueryStore;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.JobInput;
 import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.service.impl.AbstractJobStatusService;
-import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.elidom.dbist.dml.Page;
-import xyz.elidom.dbist.dml.Query;
+import xyz.elidom.sys.util.ValueUtil;
 
 /**
  * 반품 작업 상태 서비스
@@ -22,6 +23,12 @@ import xyz.elidom.dbist.dml.Query;
 @Component("rtnJobStatusService")
 public class RtnJobStatusService extends AbstractJobStatusService {
 
+	/**
+	 * 반품 배치 관련 쿼리 스토어 
+	 */
+	@Autowired
+	protected RtnQueryStore rtnQueryStore;
+	
 	@Override
 	public List<JobInput> searchInputList(JobBatch batch, String equipCd, String stationCd, String selectedInputId) {
 		// TODO Auto-generated method stub
@@ -48,19 +55,25 @@ public class RtnJobStatusService extends AbstractJobStatusService {
 
 	@Override
 	public List<JobInstance> searchPickingJobList(JobBatch batch, String stationCd, String classCd) {
-		// TODO 표시기 점등을 위해 GW, IND 정보까지 모두 한꺼번에 조회 필요 - 참조 DpsJobStatusService.searchPickingJobList
-		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
+		// 표시기 점등을 위해서 다른 테이블의 데이터도 필요해서 쿼리로 조회 
+		String sql = this.rtnQueryStore.getSearchPickingJobListQuery();
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,stageCd,equipType,classCd,statuses", batch.getDomainId(), batch.getId(), batch.getStageCd(), batch.getEquipType(), classCd, LogisConstants.JOB_STATUS_WIPC);
+		return this.queryManager.selectListBySql(sql, params, JobInstance.class, 0, 0);
+
+		/*Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		condition.addFilter("batchId", batch.getId());
 		condition.addFilter("status", LogisConstants.JOB_STATUS_PICKING);
 		condition.addFilter("classCd", classCd);
 		condition.addFilter("pickingQty", ">=", 1);
-		return this.queryManager.selectList(JobInstance.class, condition);
+		return this.queryManager.selectList(JobInstance.class, condition);*/
 	}
 
 	@Override
 	public List<JobInstance> searchPickingJobList(JobBatch batch, Map<String, Object> condition) {
-		// TODO Auto-generated method stub
-		return null;
+		// 표시기 점등을 위해서 다른 테이블의 데이터도 필요해서 쿼리로 조회
+		String sql = this.rtnQueryStore.getSearchPickingJobListQuery();
+		this.addBatchConditions(batch, condition);
+		return this.queryManager.selectListBySql(sql, condition, JobInstance.class, 0, 0);
 	}
 
 }

@@ -7,22 +7,24 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import operato.logis.das.service.api.IDasIndicationService;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.JobInput;
 import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.query.store.IndicatorQueryStore;
 import xyz.anythings.base.query.util.IndicatorQueryUtil;
-import xyz.anythings.base.service.api.IIndicationService;
+import xyz.anythings.base.service.impl.AbstractLogisService;
 import xyz.anythings.base.service.util.RuntimeIndServiceUtil;
 import xyz.anythings.gw.GwConstants;
 import xyz.anythings.gw.entity.Gateway;
 import xyz.anythings.gw.entity.IndConfigSet;
 import xyz.anythings.gw.service.IndicatorDispatcher;
+import xyz.anythings.gw.service.api.IIndHandlerService;
 import xyz.anythings.gw.service.api.IIndRequestService;
 import xyz.anythings.gw.service.model.IIndOnInfo;
+import xyz.anythings.gw.service.model.IndCommonReq;
 import xyz.anythings.gw.service.util.BatchIndConfigUtil;
-import xyz.anythings.sys.service.AbstractExecutionService;
 import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.elidom.sys.util.ValueUtil;
 
@@ -32,7 +34,7 @@ import xyz.elidom.sys.util.ValueUtil;
  * @author shortstop
  */
 @Component("rtnIndicationService")
-public class RtnIndicationService extends AbstractExecutionService implements IIndicationService {
+public class RtnIndicationService extends AbstractLogisService implements IDasIndicationService {
 	
 	/**
 	 * 인디케이터 벤더별 서비스 디스패처 
@@ -76,17 +78,19 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 	}
 
 	@Override
-	public List<JobInstance> searchJobsForIndOn(JobBatch batch, Map<String, Object> condition) {
-		// TODO gwPath, indCd까지 모두 조회하도록 수정
-		condition.put("batchId", batch.getId());
-		condition.put("jobType", batch.getJobType());
-		return this.queryManager.selectList(JobInstance.class, condition);
+	public List<JobInstance> searchJobsForIndOn(JobBatch batch, Map<String, Object> condition) {		
+		return this.serviceDispatcher.getJobStatusService(batch).searchPickingJobList(batch, condition);
+	}
+	
+	@Override
+	public void rebootGateway(JobBatch batch, Gateway gateway) {
+		IIndHandlerService indHandler = this.indicatorDispatcher.getIndicatorHandlerServiceByBatch(batch.getId());
+		indHandler.handleGatewayBootReq(gateway);
 	}
 
 	@Override
 	public List<JobInstance> indicatorsOn(JobBatch batch, boolean relight, List<JobInstance> jobList) {
 		IIndRequestService indReqSvc = this.getIndicatorRequestService(batch.getId());
-		// TODO jobList에 gwPath, indCd가 있어야 함
 		Map<String, List<IIndOnInfo>> indOnForPickList = RuntimeIndServiceUtil.buildIndOnList(!relight, batch, jobList, true);
 		indReqSvc.requestIndListOn(batch.getDomainId(), batch.getStageCd(), batch.getJobType(), GwConstants.IND_ACTION_TYPE_PICK, indOnForPickList);
 		return jobList;
@@ -167,6 +171,18 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 		String gwPath = IndicatorQueryUtil.findGatewayPathByIndCd(domainId, indCd);
 		indReqSvc.requestIndOff(domainId, stageCd, gwPath, indCd, false);
 	}
+	
+	@Override
+	public void displayAllForBoxMapping(JobBatch batch) {
+		String sql = "select i.ind_cd, g.gw_nm as gw_path from work_cells c inner join indicators i on c.domain_id = i.domain_id and c.ind_cd = i.ind_cd inner join gateways g on i.domain_id = g.domain_id and i.gw_cd = g.gw_cd where c.domain_id = :domainId and c.batch_id = :batchId and c.sku_cd is not null";
+		Map<String, Object> params = ValueUtil.newMap("domainId,stageCd,activeFlag,rackCd,indQueryFlag", batch.getDomainId(), batch.getStageCd(), true, batch.getEquipCd(), true);
+		List<IndCommonReq> indList = this.queryManager.selectListBySql(sql, params, IndCommonReq.class, 0, 0);
+		
+		IIndRequestService indReqSvc = this.getIndicatorRequestService(batch);
+		for(IndCommonReq ind : indList) {
+			indReqSvc.requestIndNoBoxDisplay(batch.getDomainId(), batch.getStageCd(), batch.getJobType(), ind.getGwPath(), ind.getIndCd());
+		}
+	}
 
 	@Override
 	public void displayForBoxMapping(JobBatch batch, String gwPath, String indCd) {
@@ -236,7 +252,6 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 	@Override
 	public void indicatorsOnByInput(JobBatch batch, JobInput input, List<JobInstance> jobList) {
 		IIndRequestService indReqSvc = this.getIndicatorRequestService(batch);
-		// TODO jobList에 gwPath, indCd가 있어야 함
 		Map<String, List<IIndOnInfo>> indOnForPickList = RuntimeIndServiceUtil.buildIndOnList(true, batch, jobList, true);
 		indReqSvc.requestIndListOn(batch.getDomainId(), batch.getStageCd(), batch.getJobType(), GwConstants.IND_ACTION_TYPE_PICK, indOnForPickList);		
 	}
@@ -245,7 +260,6 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 	public void restoreIndicatorsOn(JobBatch batch, String equipZone) {
 		IIndRequestService indReqSvc = this.getIndicatorRequestService(batch.getId());
 		List<JobInstance> jobList = this.searchJobsForIndOn(batch, ValueUtil.newMap("status,stationCd", LogisConstants.JOB_STATUS_PICKING, equipZone));
-		// TODO jobList에 gwPath, indCd가 있어야 함
 		Map<String, List<IIndOnInfo>> indOnForPickList = RuntimeIndServiceUtil.buildIndOnList(false, batch, jobList, true);
 		indReqSvc.requestIndListOn(batch.getDomainId(), batch.getStageCd(), batch.getJobType(), GwConstants.IND_ACTION_TYPE_PICK, indOnForPickList);
 	}
@@ -254,7 +268,6 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 	public void restoreIndicatorsOn(JobBatch batch) {
 		IIndRequestService indReqSvc = this.getIndicatorRequestService(batch.getId());
 		List<JobInstance> jobList = this.searchJobsForIndOn(batch, ValueUtil.newMap("status", LogisConstants.JOB_STATUS_PICKING));
-		// TODO jobList에 gwPath, indCd가 있어야 함
 		Map<String, List<IIndOnInfo>> indOnForPickList = RuntimeIndServiceUtil.buildIndOnList(false, batch, jobList, true);
 		indReqSvc.requestIndListOn(batch.getDomainId(), batch.getStageCd(), batch.getJobType(), GwConstants.IND_ACTION_TYPE_PICK, indOnForPickList);
 	}
@@ -263,7 +276,6 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 	public void restoreIndicatorsOn(JobBatch batch, int inputSeq, String equipZone, String mode) {
 		IIndRequestService indReqSvc = this.getIndicatorRequestService(batch.getId());
 		List<JobInstance> jobList = this.searchJobsForIndOn(batch, ValueUtil.newMap("status,inputSeq,stationCd", LogisConstants.JOB_STATUS_PICKING, inputSeq, equipZone));
-		// TODO jobList에 gwPath, indCd가 있어야 함
 		Map<String, List<IIndOnInfo>> indOnForPickList = RuntimeIndServiceUtil.buildIndOnList(false, batch, jobList, true);
 		indReqSvc.requestIndListOn(batch.getDomainId(), batch.getStageCd(), batch.getJobType(), GwConstants.IND_ACTION_TYPE_PICK, indOnForPickList);
 	}
@@ -290,16 +302,15 @@ public class RtnIndicationService extends AbstractExecutionService implements II
 	 * 
 	 * @param job
 	 */
-	@SuppressWarnings("rawtypes")
 	public void setIndInfoToJob(JobInstance job) {
 		String sql = this.indQueryStore.getSearchIndicatorsQuery();
-		Map<String, Object> params = ValueUtil.newMap("domainId,stageCd,activeFlag,rackCd,indQueryFlag", job.getDomainId(), job.getStageCd(), true, job.getEquipCd(), true);
-		List<Map> indList = this.queryManager.selectListBySql(sql, params, Map.class, 0, 0);
-		Map indicator = ValueUtil.isNotEmpty(indList) ? indList.get(0) : null;
+		Map<String, Object> params = ValueUtil.newMap("domainId,stageCd,activeFlag,rackCd,cellCd,indQueryFlag", job.getDomainId(), job.getStageCd(), true, job.getEquipCd(), job.getSubEquipCd(), true);
+		List<IndCommonReq> indList = this.queryManager.selectListBySql(sql, params, IndCommonReq.class, 0, 0);
+		IndCommonReq indicator = ValueUtil.isNotEmpty(indList) ? indList.get(0) : null;
 		
 		if(indicator != null) {
-			job.setIndCd(ValueUtil.toString(indicator.get("ind_cd")));
-			job.setGwPath(ValueUtil.toString(indicator.get("gw_path")));
+			job.setIndCd(indicator.getIndCd());
+			job.setGwPath(indicator.getGwPath());
 		}		
 	}
 

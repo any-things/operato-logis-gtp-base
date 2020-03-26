@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import operato.logis.das.query.store.DasQueryStore;
+import operato.logis.das.query.store.RtnQueryStore;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.BatchReceipt;
 import xyz.anythings.base.entity.BatchReceiptItem;
@@ -31,7 +31,7 @@ import xyz.elidom.sys.SysConstants;
 import xyz.elidom.util.ValueUtil;
 
 /**
- * DAS, 반품 주문 수신용 서비스
+ * DAS 주문 수신용 서비스
  * 
  * @author shortstop
  */
@@ -42,7 +42,7 @@ public class DasReceiveBatchService extends AbstractQueryService {
 	 * 반품 관련 쿼리 스토어 
 	 */
 	@Autowired
-	private DasQueryStore batchQueryStore;
+	private RtnQueryStore batchQueryStore;
 
 	/**
 	 * 주문 정보 수신을 위한 수신 서머리 정보 조회

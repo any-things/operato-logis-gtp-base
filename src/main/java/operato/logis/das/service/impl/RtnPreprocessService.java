@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import operato.logis.das.DasConstants;
-import operato.logis.das.query.store.DasQueryStore;
+import operato.logis.das.query.store.RtnQueryStore;
 import operato.logis.das.service.model.OrderGroup;
 import operato.logis.das.service.model.RackCells;
 import operato.logis.das.service.model.RtnPreprocessStatus;
@@ -44,7 +44,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	 * 쿼리 스토어
 	 */
 	@Autowired
-	private DasQueryStore queryStore;
+	private RtnQueryStore queryStore;
 	
 	@Override
 	public Map<String, ?> buildPreprocessSet(JobBatch batch, Query query) {
@@ -284,11 +284,11 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 		String classCd = AnyValueUtil.getFilterValue(query, "class_cd");
 
 		if(AnyValueUtil.isEmpty(rackCd)) {
-			rackCd = DasConstants.ALL_CAPITAL_STR;
+			rackCd = DasConstants.ALL_CAP_STRING;
 		}
 		
 		if(AnyValueUtil.isEmpty(classCd)) {
-			classCd = DasConstants.ALL_CAPITAL_STR;
+			classCd = DasConstants.ALL_CAP_STRING;
 		}
 
 		Map<String,Object> params =

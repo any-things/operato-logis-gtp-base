@@ -8,7 +8,7 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import operato.logis.das.query.store.DasQueryStore;
+import operato.logis.das.query.store.RtnQueryStore;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.Order;
@@ -34,7 +34,7 @@ import xyz.elidom.util.ValueUtil;
 public class RtnInstructionService  extends AbstractQueryService  implements IInstructionService{
 
 	@Autowired
-	private DasQueryStore QueryStore;
+	private RtnQueryStore QueryStore;
 	
 	@Override
 	public Map<String, Object> searchInstructionData(JobBatch batch, Object... params) {
@@ -64,7 +64,7 @@ public class RtnInstructionService  extends AbstractQueryService  implements IIn
 
 	@Override
 	public int instructTotalpicking(JobBatch batch, List<String> equipIdList, Object... params) {
-		// TODO Auto-generated method stub
+		// 반품에서는 사용 안 함
 		return 0;
 	}
 

@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
+import operato.logis.das.service.api.IDasIndicationService;
+import operato.logis.das.service.util.RtnBatchJobConfigUtil;
 import xyz.anythings.base.LogisCodeConstants;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.BoxPack;
@@ -24,8 +26,10 @@ import xyz.anythings.base.event.classfy.ClassifyRunEvent;
 import xyz.anythings.base.model.Category;
 import xyz.anythings.base.service.api.IAssortService;
 import xyz.anythings.base.service.api.IBoxingService;
+import xyz.anythings.base.service.api.IIndicationService;
 import xyz.anythings.base.service.impl.AbstractClassificationService;
 import xyz.anythings.base.service.util.BatchJobConfigUtil;
+import xyz.anythings.gw.entity.Gateway;
 import xyz.anythings.gw.entity.Indicator;
 import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.anythings.sys.util.AnyOrmUtil;
@@ -35,9 +39,8 @@ import xyz.elidom.exception.ElidomException;
 import xyz.elidom.exception.server.ElidomRuntimeException;
 import xyz.elidom.sys.SysConstants;
 import xyz.elidom.sys.util.DateUtil;
+import xyz.elidom.util.ThreadUtil;
 import xyz.elidom.util.ValueUtil; 
-
-
 
 /**
  * 반품 분류 서비스  구현
@@ -70,13 +73,38 @@ public class RtnAssortService extends AbstractClassificationService implements I
 	
 	@Override
 	public void batchStartAction(JobBatch batch) {
-		// TODO 작업 지시 시점에 반품 관련 추가 처리 - Ex) 할당된 표시기에 점등 ... 
+		// 설정에서 작업배치 시에 게이트웨이 리부팅 할 지 여부 조회
+		boolean gwReboot = RtnBatchJobConfigUtil.isGwRebootWhenInstruction(batch);
+		
+		if(gwReboot) {
+			IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
+			List<Gateway> gwList = indSvc.searchGateways(batch);
+			
+			// 게이트웨이 리부팅 처리
+			for(Gateway gw : gwList) {
+				indSvc.rebootGateway(batch, gw);
+			}
+		}
+		
+		// 설정에서 작업 지시 시점에 박스 매핑 표시 여부 조회 		
+		if(RtnBatchJobConfigUtil.isIndOnAssignedCellWhenInstruction(batch)) {
+			// 게이트웨이 리부팅 시에는 리부팅 프로세스 완료시까지 약 1분여간 기다린다.
+			if(gwReboot) {
+				ThreadUtil.sleep(60000);
+			}
+			
+			// 표시기에 박스 매핑 표시 
+			((IDasIndicationService)this.serviceDispatcher.getIndicationService(batch)).displayAllForBoxMapping(batch);
+		}
 	}
 
 	@Override
 	public void batchCloseAction(JobBatch batch) {
-		// 1. 모든 셀에 남아 있는 잔량에 대해 풀 박싱 
-		// this.boxService.batchBoxing(batch);
+		// 모든 셀에 남아 있는 잔량에 대해 풀 박싱 여부 조회 		
+		if(RtnBatchJobConfigUtil.isBatchFullboxWhenClosingEnabled(batch)) {
+			// 배치 풀 박싱
+			this.boxService.batchBoxing(batch);
+		}
 	}
 
 	@Override
@@ -189,8 +217,9 @@ public class RtnAssortService extends AbstractClassificationService implements I
 	 
 		// 3. 작업 인스턴스 정보 업데이트
 		if(job.getPickQty() >= (job.getPickedQty() + pickingQty)) {
-			// 3-1. TODO 배치내 작업 데이터 중에 Max InputSeq 조회 후 + 1
-			job.setInputSeq(1);
+			// 3-1. 다음 InputSeq 조회
+			int nextInputSeq = this.serviceDispatcher.getJobStatusService(batch).findNextInputSeq(batch);
+			job.setInputSeq(nextInputSeq);
 			job.setPickingQty(pickingQty);
 			job.setStatus(LogisConstants.JOB_STATUS_PICKING);
 			
@@ -475,19 +504,24 @@ public class RtnAssortService extends AbstractClassificationService implements I
 	
 	@Override
 	public void handleClassifyException(IClassifyErrorEvent errorEvent) {
+		// 1. 예외 정보 추출 
 		Throwable th = errorEvent.getException();
+		// 2. 디바이스 정보 추출
 		String device = errorEvent.getClassifyRunEvent().getClassifyDevice();
-		// 1. 모바일 디바이스로 메시지 전송 여부 
-		boolean sendMessageToDevice = !ValueUtil.isEqualIgnoreCase(device, Indicator.class.getSimpleName());
+		// 3. 표시기로 부터 온 요청이 에러인지 체크
+		boolean isIndicatorDevice = !ValueUtil.isEqualIgnoreCase(device, Indicator.class.getSimpleName());
 
-		// 2. 모바일 알람 이벤트 전송 -> 호기에 태블릿 혹은 PDA로 에러 메시지 전달
-		if((th != null) && sendMessageToDevice) {
+		// 4. 모바일 알람 이벤트 전송
+		if(th != null) {
+			String cellCd = (errorEvent.getWorkCell() != null) ? errorEvent.getWorkCell().getCellCd() : (errorEvent.getJobInstance() != null ? errorEvent.getJobInstance().getSubEquipCd() : null);
+			String stationCd = ValueUtil.isNotEmpty(cellCd) ? 
+				AnyEntityUtil.findEntityBy(errorEvent.getDomainId(), false, String.class, "stationCd", "domainId,cellCd", errorEvent.getDomainId(), cellCd) : null;
+			
 			String errMsg = (th.getCause() == null) ? th.getMessage() : th.getCause().getMessage();
-			JobInstance job = errorEvent.getJobInstance();
-			this.sendMessageToMobileDevice(errorEvent.getDomainId(), LogisConstants.JOB_TYPE_RTN, job.getEquipCd(), null, "error", errMsg);
+			this.sendMessageToMobileDevice(errorEvent.getJobBatch(), isIndicatorDevice ? null : device, stationCd, "error", errMsg);			
 		}
 
-		// 3. 예외 발생
+		// 5. 예외 발생
 		throw (th instanceof ElidomException) ? (ElidomException)th : new ElidomRuntimeException(th);
 	}
 	
@@ -543,17 +577,27 @@ public class RtnAssortService extends AbstractClassificationService implements I
 	/**
 	 * 모바일 디바이스에 메시지 전송
 	 * 
-	 * @param domainId
-	 * @param jobType
-	 * @param equipCd
+	 * @param batch
+	 * @param toDevice
 	 * @param stationCd
 	 * @param notiType
 	 * @param message
 	 */
-	private void sendMessageToMobileDevice(Long domainId, String jobType, String equipCd, String stationCd, String notiType, String message) {
-		// String equipType = MpsCompanySetting.getMainMobileDevice(domainId, null, jobType);
-		// MobileNotiEvent event = new MobileNotiEvent(domainId, jobType, equipType, equipCd, stationCd, notiType, message);
-		// this.eventPublisher.publishEvent(event);
+	private void sendMessageToMobileDevice(JobBatch batch, String toDevice, String stationCd, String notiType, String message) {
+		String[] deviceList = null;
+		
+		if(toDevice == null) {
+			// toDevice가 없다면 사용 디바이스 리스트 조회
+			deviceList = RtnBatchJobConfigUtil.getDeviceList(batch) == null ? null : RtnBatchJobConfigUtil.getDeviceList(batch);
+		} else {
+			deviceList = new String[] { toDevice };
+		}
+		
+		if(deviceList != null) {
+			for(String device : deviceList) {
+				this.serviceDispatcher.getDeviceService().sendMessageToDevice(batch.getDomainId(), device, batch.getStageCd(), batch.getEquipType(), batch.getEquipCd(), stationCd, null, batch.getJobType(), notiType, message, null);
+			}
+		}
 	}
 
 }

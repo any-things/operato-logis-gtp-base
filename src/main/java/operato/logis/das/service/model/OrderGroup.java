@@ -1,6 +1,5 @@
 package operato.logis.das.service.model;
 
-
 /**
  * 주문 그룹 정보
  * 
