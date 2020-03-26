@@ -1,4 +1,4 @@
-package operato.logis.das.service.impl.rtn;
+package operato.logis.das.service.impl;
 
 import java.util.List;
 import java.util.Map;
