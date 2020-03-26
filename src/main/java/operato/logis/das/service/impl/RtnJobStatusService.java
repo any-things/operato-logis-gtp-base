@@ -57,15 +57,8 @@ public class RtnJobStatusService extends AbstractJobStatusService {
 	public List<JobInstance> searchPickingJobList(JobBatch batch, String stationCd, String classCd) {
 		// 표시기 점등을 위해서 다른 테이블의 데이터도 필요해서 쿼리로 조회 
 		String sql = this.rtnQueryStore.getSearchPickingJobListQuery();
-		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,stageCd,equipType,classCd,statuses", batch.getDomainId(), batch.getId(), batch.getStageCd(), batch.getEquipType(), classCd, LogisConstants.JOB_STATUS_WIPC);
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,classCd,statuses,pickingQty", batch.getDomainId(), batch.getId(), classCd, LogisConstants.JOB_STATUS_WIPC, 1);
 		return this.queryManager.selectListBySql(sql, params, JobInstance.class, 0, 0);
-
-		/*Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
-		condition.addFilter("batchId", batch.getId());
-		condition.addFilter("status", LogisConstants.JOB_STATUS_PICKING);
-		condition.addFilter("classCd", classCd);
-		condition.addFilter("pickingQty", ">=", 1);
-		return this.queryManager.selectList(JobInstance.class, condition);*/
 	}
 
 	@Override

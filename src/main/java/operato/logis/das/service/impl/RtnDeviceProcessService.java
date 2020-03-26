@@ -12,7 +12,6 @@ import xyz.anythings.base.event.rest.DeviceProcessRestEvent;
 import xyz.anythings.sys.service.AbstractExecutionService;
 import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.elidom.dbist.dml.Query;
-import xyz.elidom.sys.entity.Domain;
 import xyz.elidom.sys.util.ThrowUtil;
 import xyz.elidom.util.ValueUtil;
 
@@ -27,15 +26,15 @@ public class RtnDeviceProcessService extends AbstractExecutionService{
 	/**
 	 * 슈트 정보를 받아서 유효한 지 체크한 후 호기/슈트 정보를 리턴
 	 *
-	 * @param chuteNo
+	 * @param event
 	 * @return
 	 */ 
 	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/chute_info','RTN')")
 	@Order(Ordered.LOWEST_PRECEDENCE)
 	public Object validateChute(DeviceProcessRestEvent event) {
-		Long domainId = Domain.currentDomainId();  
+		
 		String chuteNo = event.getRequestParams().get("chuteNo").toString();
-		Query query = AnyOrmUtil.newConditionForExecution(domainId);
+		Query query = AnyOrmUtil.newConditionForExecution(event.getDomainId());
 		
 		query.addFilter("chuteNo", chuteNo);
 		Rack rack = this.queryManager.selectByCondition(Rack.class, query);
@@ -44,11 +43,11 @@ public class RtnDeviceProcessService extends AbstractExecutionService{
 			// 슈트 번호(1) 을(를) 찾을수 없습니다
 			throw ThrowUtil.newNotFoundRecord("terms.label.chute_no", chuteNo);
 		}
-		Map<String, Object> retValue= ValueUtil.newMap("rack_cd,rack_nm,chute_no", rack.getRackCd(), rack.getRackNm(), chuteNo);
 		
+		Map<String, Object> retValue = ValueUtil.newMap("rack_cd,rack_nm,chute_no", rack.getRackCd(), rack.getRackNm(), chuteNo);
 		event.setResult(retValue);
-		event.setExecuted(true); 
-		
+		event.setExecuted(true);
 		return retValue;
 	}
+
 }

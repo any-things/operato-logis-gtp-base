@@ -43,10 +43,10 @@ public class RtnBoxingService extends AbstractExecutionService implements IBoxin
 	public JobConfigSet getJobConfigSet(String batchId) {
 		return BatchJobConfigUtil.getConfigSetService().getConfigSet(batchId);
 	}
-
+	
 	@Override
-	public Object assignBoxToCell(JobBatch batch, String cellCd, String boxId, Object... params) {
-		// 1. Box 사용 여부 체크
+	public boolean isUsedBoxId(JobBatch batch, String boxId, boolean exceptionWhenBoxIdUsed) {
+
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		String boxIdUniqueScope = BatchJobConfigUtil.getBoxIdUniqueScope(batch, LogisConstants.BOX_ID_UNIQUE_SCOPE_GLOBAL);
 		
@@ -67,12 +67,20 @@ public class RtnBoxingService extends AbstractExecutionService implements IBoxin
 		}
 		
 		BoxPack boxPack = this.queryManager.selectByCondition(BoxPack.class, condition);
-		if(boxPack != null) {
+		if(boxPack != null && exceptionWhenBoxIdUsed) {
 			throw new ElidomRuntimeException("박스 ID [" + boxId + "]는 이미 사용한 박스입니다.");
-		} 
+		}
+		
+		return boxPack != null;
+	}
+
+	@Override
+	public Object assignBoxToCell(JobBatch batch, String cellCd, String boxId, Object... params) {
+		// 1. Box 사용 여부 체크
+		this.isUsedBoxId(batch, boxId, true);
 				
 		// 2. 작업 WorkCell 조회
-		condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
+		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		condition.addFilter("batchId", batch.getId());
 		condition.addFilter("cellCd", cellCd);
 		WorkCell cell = this.queryManager.selectByCondition(WorkCell.class, condition);

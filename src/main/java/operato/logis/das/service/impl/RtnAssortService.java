@@ -39,6 +39,7 @@ import xyz.elidom.exception.ElidomException;
 import xyz.elidom.exception.server.ElidomRuntimeException;
 import xyz.elidom.sys.SysConstants;
 import xyz.elidom.sys.util.DateUtil;
+import xyz.elidom.sys.util.ThrowUtil;
 import xyz.elidom.util.ThreadUtil;
 import xyz.elidom.util.ValueUtil; 
 
@@ -188,33 +189,34 @@ public class RtnAssortService extends AbstractClassificationService implements I
 	public Object inputSkuSingle(IClassifyInEvent inputEvent) {
 		JobBatch batch = inputEvent.getJobBatch(); 
 		String comCd = inputEvent.getComCd();
-		String skuCd = inputEvent.getInputCode();
+		String classCd = inputEvent.getInputCode();
 		Integer inputQty = inputEvent.getInputQty();
-		String nowStr = DateUtil.currentTimeStr();
 		
 		// 1. 투입된 상품 코드를 제외하고 투입 이후 확정 처리가 안 된 상품을 조회 
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		condition.addFilter("batchId", batch.getId());
 		condition.addFilter("comCd", comCd);
-		condition.addFilter("skuCd", "noteq", skuCd);
+		// 설정에서 셀 - 박스와 매핑될 타겟 필드를 조회  
+		String classFieldName = RtnBatchJobConfigUtil.getBoxMappingTargetField(batch);
+		condition.addFilter(classFieldName, "noteq", classCd);
 		condition.addFilter("equipCd", batch.getEquipCd());
 		condition.addFilter("status", LogisConstants.JOB_STATUS_PICKING);
 		condition.addFilter("pickingQty", ">=", 1);
 		
 		if(this.queryManager.selectSize(JobInstance.class, condition) > 0) { 
-			throw new ElidomRuntimeException("투입 이후 확정 처리를 안 한 셀이 있습니다.");
+			throw ThrowUtil.newValidationErrorWithNoLog("투입 이후 확정 처리를 안 한 셀이 있습니다.");
 		}
 		
 		// 2. 작업 인스턴스 조회 
-		condition.removeFilter("skuCd");
-		condition.removeFilter("status");
-		condition.removeFilter("pickingQty");
+		List<JobInstance> jobList = this.serviceDispatcher.getJobStatusService(batch).searchPickingJobList(batch, null, classCd);
+		if(ValueUtil.isEmpty(jobList)) {
+			throw ThrowUtil.newValidationErrorWithNoLog("투입 처리할 작업이 존재하지 않습니다.");
+		}
 		
-		condition.addFilter("skuCd", skuCd);
-		condition.addFilter("status", "in", LogisConstants.JOB_STATUS_WIPC);
-		JobInstance job = this.queryManager.selectByCondition(JobInstance.class, condition);
+		JobInstance job = jobList.get(0);
 		Integer pickingQty = job.getPickingQty() + inputQty;
-	 
+		String nowStr = DateUtil.currentTimeStr();
+		
 		// 3. 작업 인스턴스 정보 업데이트
 		if(job.getPickQty() >= (job.getPickedQty() + pickingQty)) {
 			// 3-1. 다음 InputSeq 조회
@@ -239,7 +241,7 @@ public class RtnAssortService extends AbstractClassificationService implements I
 			
 		} else {
 			// 처리 가능한 수량 초과.
-			throw new ElidomRuntimeException("처리 예정 수량을 초과 했습니다.");
+			throw ThrowUtil.newValidationErrorWithNoLog("처리 예정 수량을 초과 했습니다.");
 		} 
 		 
 		return job;
@@ -349,7 +351,24 @@ public class RtnAssortService extends AbstractClassificationService implements I
 		job.setPickedQty(0);
 		this.queryManager.update(job, "pickingQty", "pickedQty", "updatedAt");
 		
-		// 2. TODO 주문 데이터 확정 수량 마이너스 처리 
+		// 2. 주문 데이터 확정 수량 마이너스 처리
+		Query condition = AnyOrmUtil.newConditionForExecution(job.getDomainId(), 1, 1);
+		condition.addFilter("batchId", job.getId());
+		condition.addFilter("equipCd", job.getEquipCd());
+		// 설정에서 셀 - 박스와 매핑될 타겟 필드를 조회  
+		String classFieldName = RtnBatchJobConfigUtil.getBoxMappingTargetField(exeEvent.getJobBatch());
+		condition.addFilter(classFieldName, job.getClassCd());
+		condition.addFilter("status", "in", ValueUtil.toList(Order.STATUS_RUNNING, Order.STATUS_FINISHED));
+		condition.addFilter("pickingQty", ">=", pickedQty);
+		condition.addOrder("updatedAt", false);
+		
+		List<Order> orderList = this.queryManager.selectList(Order.class, condition);
+		if(ValueUtil.isNotEmpty(orderList)) {
+			Order order = orderList.get(0);
+			order.setPickedQty(order.getPickedQty() - pickedQty);
+			order.setStatus(Order.STATUS_RUNNING);
+			this.queryManager.update(order, "pickedQty", "status", "updatedAt");
+		}
 		
 		// 3. 다음 작업 처리
 		this.doNextJob(job, exeEvent.getWorkCell(), this.checkCellAssortEnd(job, false));
@@ -361,38 +380,56 @@ public class RtnAssortService extends AbstractClassificationService implements I
 	@EventListener(classes = IClassifyOutEvent.class, condition = "#outEvent.jobType == 'RTN'")
 	@Override
 	public BoxPack fullBoxing(IClassifyOutEvent outEvent) {
+
+		// 1. 작업 데이터 추출
 		JobInstance job = outEvent.getJobInstance();
-		// 1. TODO 풀 박스 전 처리
 		
-		// 2. 풀 박스 처리 
+		// 2. 풀 박스 체크
+		if(ValueUtil.isEqualIgnoreCase(LogisConstants.JOB_STATUS_BOXED, job.getStatus())) {
+			throw ThrowUtil.newValidationErrorWithNoLog("작업[" + job.getId() + "]은 이미 풀 박스가 완료되었습니다.");
+		}
+		
+		// 3. 풀 박스 처리 
 		BoxPack boxPack = this.boxService.fullBoxing(outEvent.getJobBatch(), outEvent.getWorkCell(), ValueUtil.toList(job), this);
 		
-		// 3. 다음 작업 처리
-		this.doNextJob(job, outEvent.getWorkCell(), this.checkCellAssortEnd(job, false));
+		// 4. 다음 작업 처리
+		if(boxPack != null) {
+			this.doNextJob(job, outEvent.getWorkCell(), this.checkCellAssortEnd(job, false));
+		}
 		
-		// 4. 박스 리턴
+		// 5. 박스 리턴
 		return boxPack;
 	}
 
 	@Override
 	public BoxPack partialFullboxing(IClassifyOutEvent outEvent) {
+		// 1. 작업 데이터 추출
 		JobInstance job = outEvent.getJobInstance();
-		// 1. TODO 풀 박스 전 처리
 		
-		// 2. 풀 박스 처리
+		// 2. 풀 박스 체크
+		if(ValueUtil.isEqualIgnoreCase(LogisConstants.JOB_STATUS_BOXED, job.getStatus())) {
+			throw ThrowUtil.newValidationErrorWithNoLog("작업[" + job.getId() + "]은 이미 풀 박스가 완료되었습니다.");
+		}
+		
+		// 3. 풀 박스 처리
 		int resQty = outEvent.getReqQty();
 		BoxPack boxPack = this.boxService.partialFullboxing(outEvent.getJobBatch(), outEvent.getWorkCell(), ValueUtil.toList(job), resQty, this);
 		
-		// 3. 다음 작업 처리
-		this.doNextJob(job, outEvent.getWorkCell(), this.checkCellAssortEnd(job, false));
+		// 4. 다음 작업 처리
+		if(boxPack != null) {
+			this.doNextJob(job, outEvent.getWorkCell(), this.checkCellAssortEnd(job, false));
+		}
 		
-		// 4. 박스 리턴
+		// 5. 박스 리턴
 		return boxPack;
 	}
 
 	@Override
 	public BoxPack cancelBoxing(Long domainId, BoxPack box) {
-		// 1. TODO 풀 박스 취소 전 처리
+		// 1. 풀 박스 취소 전 처리
+		if(box == null) {
+			throw ThrowUtil.newValidationErrorWithNoLog("박싱 취소할 박스가 없습니다.");
+		}
 		
 		// 2. 풀 박스 취소 
 		BoxPack boxPack = this.boxService.cancelFullboxing(box);

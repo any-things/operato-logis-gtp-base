@@ -91,8 +91,8 @@ WHERE
     #if($gwCd)
     AND ROUTER.GW_CD = :gwCd
     #end
-    #if($restore)
-    AND (JOB.SUB_EQUIP_CD, JOB.INPUT_SEQ) IN (SELECT SUB_EQUIP_CD, MIN(INPUT_SEQ) FROM JOB_INSTANCES WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId AND STATUS = 'P' GROUP BY SUB_EQUIP_CD)
+    #if($pickingQty)
+    AND JOB.PICKING_QTY >= :pickingQty
     #end
     #if($onlyOne)
     AND ROWNUM = 1
