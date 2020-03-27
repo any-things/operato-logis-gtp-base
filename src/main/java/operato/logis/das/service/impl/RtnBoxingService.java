@@ -27,7 +27,7 @@ import xyz.elidom.sys.util.DateUtil;
 import xyz.elidom.util.ValueUtil;
 
 /**
- * 박스 처리 서비스
+ * 반품용 박스 처리 서비스
  * 
  * @author shortstop
  */

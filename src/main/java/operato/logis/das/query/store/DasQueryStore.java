@@ -6,13 +6,13 @@ import xyz.anythings.sys.service.AbstractQueryStore;
 import xyz.elidom.sys.SysConstants;
 
 /**
- * 반품용 쿼리 스토어
+ * 출고용 쿼리 스토어
  * 
  * @author shortstop
  */
 @Component
-public class RtnQueryStore extends AbstractQueryStore {
-
+public class DasQueryStore extends AbstractQueryStore {
+	
 	@Override
 	public void initQueryStore(String databaseType) {
 		this.databaseType = databaseType;
@@ -30,7 +30,7 @@ public class RtnQueryStore extends AbstractQueryStore {
 	}
 	
 	/**
-	 * WMS I/F 테이블로 부터  주문수신 완료된 데이터 변경('Y')
+	 * WMS I/F 테이블로 부터 주문수신 완료된 데이터 변경('Y')
 	 * 
 	 * @return
 	 */
@@ -61,8 +61,8 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getRtnGeneratePreprocessQuery() {
-		return this.getQueryByPath("preprocess/RtnGeneratePreprocess");
+	public String getDasGeneratePreprocessQuery() {
+		return this.getQueryByPath("preprocess/DasGeneratePreprocess");
 	}
 	
 	/**
@@ -80,8 +80,8 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getRtnRackCellStatusQuery() {
-		return this.getQueryByPath("preprocess/RtnRackCellStatus");
+	public String getDasRackCellStatusQuery() {
+		return this.getQueryByPath("preprocess/DasRackCellStatus");
 	}
 	
 	/**
@@ -89,8 +89,8 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getRtnPreprocessSummaryQuery() {
-		return this.getQueryByPath("preprocess/RtnPreprocessSummary");
+	public String getDasPreprocessSummaryQuery() {
+		return this.getQueryByPath("preprocess/DasPreprocessSummary");
 	}
 	
 	/**
@@ -98,8 +98,8 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getRtnBatchGroupPreprocessSummaryQuery() {
-		return this.getQueryByPath("preprocess/RtnBatchGroupPreprocessSummary");
+	public String getDasBatchGroupPreprocessSummaryQuery() {
+		return this.getQueryByPath("preprocess/DasBatchGroupPreprocessSummary");
 	} 
 	
 	/**
@@ -107,18 +107,18 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getRtnResetRackCellQuery() {
-		return this.getQueryByPath("preprocess/RtnResetRackCell");
+	public String getDasResetRackCellQuery() {
+		return this.getQueryByPath("preprocess/DasResetRackCell");
 	} 
 	
 	/**
-	 * 작업 배치 주문 정보의 SKU 별 총 주문 개수와 주문 가공 정보(RtnPreprocess)의 SKU 별 총 주문 개수를
+	 * 작업 배치 주문 정보의 SKU 별 총 주문 개수와 주문 가공 정보(OrderPreprocess)의 SKU 별 총 주문 개수를
 	 * SKU 별로 비교하여 같지 않은 거래처의 정보만 조회하는 쿼리
 	 *
 	 * @return
 	 */
-	public String getRtnOrderPreprocessDiffStatusQuery() {
-		return this.getQueryByPath("preprocess/RtnOrderPreprocessDiffStatus");
+	public String getDasOrderPreprocessDiffStatusQuery() {
+		return this.getQueryByPath("preprocess/DasOrderPreprocessDiffStatus");
 	} 
 	
 	/**
@@ -126,8 +126,8 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getRtnPreprocessRackSummaryQuery() {
-		return this.getQueryByPath("preprocess/RtnPreprocessRackSummary");
+	public String getDasPreprocessRackSummaryQuery() {
+		return this.getQueryByPath("preprocess/DasPreprocessRackSummary");
 	} 
 	
 	/**
@@ -135,8 +135,8 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getRtnPararellRackPreprocessCloneQuery() {
-		return this.getQueryByPath("preprocess/RtnPararellRackPreprocessClone");
+	public String getDasPararellRackPreprocessCloneQuery() {
+		return this.getQueryByPath("preprocess/DasPararellRackPreprocessClone");
 	} 
 	
 	/**
@@ -144,8 +144,8 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getRtnBatchIdOfOrderUpdateQuery() {
-		return this.getQueryByPath("preprocess/RtnBatchIdOfOrderUpdate");
+	public String getDasBatchIdOfOrderUpdateQuery() {
+		return this.getQueryByPath("preprocess/DasBatchIdOfOrderUpdate");
 	} 
 	
 	/**
@@ -153,8 +153,8 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getRtnGenerateJobsByInstructionQuery() {
-		return this.getQueryByPath("instruction/RtnGenerateJobs");
+	public String getDasGenerateJobsByInstructionQuery() {
+		return this.getQueryByPath("instruction/DasGenerateJobs");
 	} 
 	
 	/**
@@ -162,8 +162,8 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getRtnInstructionSummaryDataQuery() {
-		return this.getQueryByPath("instruction/RtnInstructionSummaryData");
+	public String getDasInstructionSummaryDataQuery() {
+		return this.getQueryByPath("instruction/DasInstructionSummaryData");
 	} 
 	
 	/**
@@ -171,8 +171,8 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getRtnJobInstancesSummaryDataQuery() {
-		return this.getQueryByPath("instruction/RtnJobInstancesSummaryData");
+	public String getDasJobInstancesSummaryDataQuery() {
+		return this.getQueryByPath("instruction/DasJobInstancesSummaryData");
 	} 
 	
 	/**

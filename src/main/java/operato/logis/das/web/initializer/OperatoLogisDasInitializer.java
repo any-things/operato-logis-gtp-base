@@ -10,6 +10,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import operato.logis.das.config.ModuleProperties;
+import operato.logis.das.query.store.DasQueryStore;
 import operato.logis.das.query.store.RtnQueryStore;
 import xyz.elidom.orm.IQueryManager;
 import xyz.elidom.sys.config.ModuleConfigSet;
@@ -46,7 +47,10 @@ public class OperatoLogisDasInitializer {
 	private IQueryManager queryManager;
 	
 	@Autowired
-	private RtnQueryStore dasQueryStore;
+	private DasQueryStore dasQueryStore;
+	
+	@Autowired
+	private RtnQueryStore rtnQueryStore;
 	
 	@EventListener({ ContextRefreshedEvent.class })
 	public void refresh(ContextRefreshedEvent event) {
@@ -80,6 +84,7 @@ public class OperatoLogisDasInitializer {
 	private void initQueryStores() {
 		String dbType = this.queryManager.getDbType();
 		this.dasQueryStore.initQueryStore(dbType);
+		this.rtnQueryStore.initQueryStore(dbType);
 	}
 	
 }

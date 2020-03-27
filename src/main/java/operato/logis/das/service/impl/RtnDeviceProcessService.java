@@ -21,7 +21,7 @@ import xyz.elidom.util.ValueUtil;
  * @author shortstop
  */
 @Component("rtnDeviceProcessService")
-public class RtnDeviceProcessService extends AbstractExecutionService{
+public class RtnDeviceProcessService extends AbstractExecutionService {
 	
 	/**
 	 * 슈트 정보를 받아서 유효한 지 체크한 후 호기/슈트 정보를 리턴
