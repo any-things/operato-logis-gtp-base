@@ -33,12 +33,15 @@ import xyz.elidom.util.ValueUtil;
 @Component("rtnInstructionService")
 public class RtnInstructionService  extends AbstractQueryService  implements IInstructionService{
 
+	/**
+	 * 반품 작업 쿼리 스토어
+	 */
 	@Autowired
-	private RtnQueryStore QueryStore;
+	private RtnQueryStore rtnQueryStore;
 	
 	@Override
 	public Map<String, Object> searchInstructionData(JobBatch batch, Object... params) {
-		String sql = QueryStore.getRtnInstructionSummaryDataQuery();
+		String sql = this.rtnQueryStore.getRtnInstructionSummaryDataQuery();
 		Long domainId = batch.getDomainId();
 		Map<String,Object> param = ValueUtil.newMap("domainId,batchId", domainId, batch.getId());
 		Map<?, ?> cntResult = this.queryManager.selectBySql(sql, param, Map.class);
@@ -242,7 +245,7 @@ public class RtnInstructionService  extends AbstractQueryService  implements IIn
 	 */
 	private void generateJobInstancesBy(JobBatch batch) {
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId());
-		String insertQuery = this.QueryStore.getRtnGenerateJobInstancesQuery();
+		String insertQuery = this.rtnQueryStore.getRtnGenerateJobsByInstructionQuery();
 		this.queryManager.executeBySql(insertQuery, params);
 	}
 	

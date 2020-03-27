@@ -1,0 +1,18 @@
+SELECT
+    SKU_CNT, PCS_CNT, CUST_CNT
+FROM (
+    SELECT
+        COUNT(1) AS SKU_CNT,
+        (SELECT COUNT(DISTINCT(SHOP_CD)) FROM ORDERS WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId) AS CUST_CNT,
+        SUM(TOTAL_PCS) AS PCS_CNT
+    FROM (
+        SELECT 
+          CELL_ASSGN_CD, TOTAL_PCS
+        FROM 
+          ORDER_PREPROCESSES
+        WHERE 
+          DOMAIN_ID = :domainId AND BATCH_ID = :batchId
+    )
+    GROUP BY
+        CELL_ASSGN_CD
+)

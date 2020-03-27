@@ -20,9 +20,9 @@ public class RtnQueryStore extends AbstractQueryStore {
 		this.defaultBasePath = "operato/logis/das/query/ansi/"; 
 	}
 	
-	/*** BatchReceipt 관련 데이터 쿼리 ***/
 	/**
-	 * WMS I/F 테이블로 부터 반품 BatchReceipt 데이터를 조회 한다.
+	 * WMS I/F 테이블로 부터 반품 BatchReceipt 데이터를 조회
+	 * 
 	 * @return
 	 */
 	public String getWmsIfToReceiptDataQuery() {
@@ -30,8 +30,17 @@ public class RtnQueryStore extends AbstractQueryStore {
 	}
 	
 	/**
-	 * BatchReceipt 조회
-	 * 상세 Item 에 Order 타입이 있는 Case 
+	 * WMS I/F 테이블로 부터  주문수신 완료된 데이터 변경('Y')
+	 * 
+	 * @return
+	 */
+	public String getWmsIfToReceiptUpdateQuery() {
+		return this.getQueryByPath("batch/WmsIfToReceiptUpdate");
+	}
+	
+	/**
+	 * BatchReceipt 조회 - 상세 Item 에 Order 타입이 있는 Case
+	 *  
 	 * @return
 	 */
 	public String getBatchReceiptOrderTypeStatusQuery() {
@@ -39,21 +48,21 @@ public class RtnQueryStore extends AbstractQueryStore {
 	}
 	
 	/**
-	 *WMS I/F 테이블로 부터  주문수신 완료된 데이터 변경('Y')
-	 * 
-	 * @return
-	 */
-	public String getWmsIfToReceiptUpdateQuery() {
-		return this.getQueryByPath("batch/WmsIfToReceiptUpdate");
-	} 
-	
-	/**
-	 * 주문 데이터로 부터  주문 가공 쿼리
+	 * 작업 차수 생성
 	 *
 	 * @return
 	 */
-	public String getRtnGeneratePreprocessQuery(){
-		return this.getQueryByPath("rtn/rtnGeneratePreprocess");
+	public String getFindMaxBatchSeqQuery() {
+		return this.getQueryByPath("batch/FindMaxBatchSeq");
+	}
+	
+	/**
+	 * 주문 데이터로 부터 주문 가공 쿼리
+	 *
+	 * @return
+	 */
+	public String getRtnGeneratePreprocessQuery() {
+		return this.getQueryByPath("preprocess/RtnGeneratePreprocess");
 	}
 	
 	/**
@@ -62,7 +71,7 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getOrderGroupListQuery() {
-		return this.getQueryByPath("rtn/orderGroupList");
+		return this.getQueryByPath("preprocess/OrderGroupList");
 	}
 	
 	
@@ -72,7 +81,7 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getRtnRackCellStatusQuery() {
-		return this.getQueryByPath("rtn/rtnRackCellStatus");
+		return this.getQueryByPath("preprocess/RtnRackCellStatus");
 	}
 	
 	/**
@@ -81,7 +90,7 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getRtnPreprocessSummaryQuery() {
-		return this.getQueryByPath("rtn/rtnPreprocessSummary");
+		return this.getQueryByPath("preprocess/RtnPreprocessSummary");
 	}
 	
 	/**
@@ -90,7 +99,7 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getRtnBatchGroupPreprocessSummaryQuery() {
-		return this.getQueryByPath("rtn/rtnBatchGroupPreprocessSummary");
+		return this.getQueryByPath("preprocess/RtnBatchGroupPreprocessSummary");
 	} 
 	
 	/**
@@ -99,7 +108,7 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getRtnResetRackCellQuery() {
-		return this.getQueryByPath("rtn/rtnResetRackCell");
+		return this.getQueryByPath("preprocess/RtnResetRackCell");
 	} 
 	
 	/**
@@ -109,7 +118,7 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getRtnOrderPreprocessDiffStatusQuery() {
-		return this.getQueryByPath("rtn/rtnOrderPreprocessDiffStatus");
+		return this.getQueryByPath("preprocess/RtnOrderPreprocessDiffStatus");
 	} 
 	
 	/**
@@ -118,16 +127,7 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getRtnPreprocessRackSummaryQuery() {
-		return this.getQueryByPath("rtn/rtnPreprocessRackSummary");
-	} 
-	
-	/**
-	 * Cell 할당을 위한 소팅 쿼리
-	 *
-	 * @return
-	 */
-	public String getCommonCellSortingQuery() {
-		return this.getQueryByPath("rtn/commonCellSorting");
+		return this.getQueryByPath("preprocess/RtnPreprocessRackSummary");
 	} 
 	
 	/**
@@ -136,7 +136,7 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getRtnPararellRackPreprocessCloneQuery() {
-		return this.getQueryByPath("rtn/rtnPararellRackPreprocessClone");
+		return this.getQueryByPath("preprocess/RtnPararellRackPreprocessClone");
 	} 
 	
 	/**
@@ -145,25 +145,16 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getRtnBatchIdOfOrderUpdateQuery() {
-		return this.getQueryByPath("rtn/rtnBatchIdOfOrderUpdate");
+		return this.getQueryByPath("preprocess/RtnBatchIdOfOrderUpdate");
 	} 
 	
 	/**
-	 * 작업 차수 생성
+	 * 작업 지시 시점에 작업 데이터 생성
 	 *
 	 * @return
 	 */
-	public String getRtnCreateJobBatchSeqQuery() {
-		return this.getQueryByPath("rtn/rtnCreateJobBatchSeq");
-	} 
-	
-	/**
-	 * 작업 차수 생성
-	 *
-	 * @return
-	 */
-	public String getRtnGenerateJobInstancesQuery() {
-		return this.getQueryByPath("rtn/rtnGenerateJobInstances");
+	public String getRtnGenerateJobsByInstructionQuery() {
+		return this.getQueryByPath("instruction/RtnGenerateJobs");
 	} 
 	
 	/**
@@ -172,16 +163,16 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getRtnInstructionSummaryDataQuery() {
-		return this.getQueryByPath("rtn/rtnInstructionSummaryData");
+		return this.getQueryByPath("instruction/RtnInstructionSummaryData");
 	} 
 	
 	/**
-	 * JobInstances 요약 정보 조회
+	 * 작업 지시를 위한 작업 데이터 요약 정보 조회
 	 *
 	 * @return
 	 */
 	public String getRtnJobInstancesSummaryDataQuery() {
-		return this.getQueryByPath("rtn/rtnJobInstancesSummaryData");
+		return this.getQueryByPath("instruction/RtnJobInstancesSummaryData");
 	} 
 	
 	/**
@@ -192,4 +183,14 @@ public class RtnQueryStore extends AbstractQueryStore {
 	public String getSearchPickingJobListQuery() {
 		return this.getQueryByPath("pick/SearchPickingJobList");
 	}
+	
+	/**
+	 * Cell 할당을 위한 소팅 쿼리
+	 *
+	 * @return
+	 */
+	public String getCommonCellSortingQuery() {
+		return this.getQueryByPath("etc/CellSorting");
+	}
+
 }
