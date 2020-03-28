@@ -44,7 +44,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	 * 쿼리 스토어
 	 */
 	@Autowired
-	private RtnQueryStore queryStore;
+	private RtnQueryStore rtnQueryStore;
 	
 	@Override
 	public Map<String, ?> buildPreprocessSet(JobBatch batch, Query query) {
@@ -106,7 +106,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 		if(resetAll) {
 			this.generatePreprocess(batch);
 		} else {
-			String qry = this.queryStore.getRtnResetRackCellQuery();
+			String qry = this.rtnQueryStore.getRtnResetRackCellQuery();
 			this.queryManager.executeBySql(qry, ValueUtil.newMap("domainId,batchId,equipCds", batch.getDomainId(), batch.getId(), equipCdList));	
 		}
 		
@@ -183,7 +183,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	 */
 	public int assignRackByAuto(JobBatch batch, String equipCds, List<OrderPreprocess> items) {
 		// 1. 주문 가공 정보 호기 매핑 리셋
-		String qry = queryStore.getRtnResetRackCellQuery();
+		String qry = this.rtnQueryStore.getRtnResetRackCellQuery();
 		this.queryManager.executeBySql(qry, ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId()));
 		
 		// 2. 호기 리스트 조회
@@ -256,7 +256,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	 * @return
 	 */
 	public List<OrderGroup> searchOrderGroupList(JobBatch batch) {
-		String sql = queryStore.getOrderGroupListQuery();
+		String sql = this.rtnQueryStore.getOrderGroupListQuery();
 		return this.queryManager.selectListBySql(sql, ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId()), OrderGroup.class, 0, 0);
 	}
 	
@@ -267,7 +267,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	 * @return
 	 */
 	public List<RtnPreprocessSummary> preprocessSummaryByRacks(JobBatch batch) {
-		String sql = queryStore.getRtnPreprocessSummaryQuery();
+		String sql = this.rtnQueryStore.getRtnPreprocessSummaryQuery();
 		Map<String, Object> params = ValueUtil.newMap("batchId", batch.getId());
 		return this.queryManager.selectListBySql(sql, params,RtnPreprocessSummary.class, 0, 0);
 	}
@@ -302,7 +302,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 			params.remove("rackCd");
 		}
 
-		String sql = queryStore.getRtnBatchGroupPreprocessSummaryQuery();
+		String sql = this.rtnQueryStore.getRtnBatchGroupPreprocessSummaryQuery();
 		return this.queryManager.selectBySql(sql, params, Map.class);
 	}
 	
@@ -341,7 +341,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	 * @return
 	 */
 	public List<RackCells> rackAssignmentStatus(JobBatch batch) {
-		String sql = queryStore.getRtnRackCellStatusQuery();
+		String sql = this.rtnQueryStore.getRtnRackCellStatusQuery();
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,jobType,stageCd,activeFlag", batch.getDomainId(), batch.getId(), batch.getJobType(), batch.getStageCd(), true);
 		return this.queryManager.selectListBySql(sql, params, RackCells.class, 0, 0); 
 	}
@@ -354,7 +354,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	 * @return
 	 */ 
 	public List<RackCells> rackAssignmentStatus(JobBatch batch, List<String> equipCds) {
-		String sql = queryStore.getRtnRackCellStatusQuery(); 
+		String sql = this.rtnQueryStore.getRtnRackCellStatusQuery(); 
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,jobType,stageCd,activeFlag,equipCds", batch.getDomainId(), batch.getId(), batch.getJobType(), batch.getStageCd(), true, equipCds);
 		return this.queryManager.selectListBySql(sql, params, RackCells.class, 0, 0);
 	}
@@ -365,7 +365,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 		this.deletePreprocess(batch);
 		
 		// 2. 주문 가공 데이터를 생성하기 위해 주문 데이터를 조회
-		String sql = queryStore.getRtnGeneratePreprocessQuery();
+		String sql = this.rtnQueryStore.getRtnGeneratePreprocessQuery();
 		Map<String, Object> condition = ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId());
 		List<OrderPreprocess> preprocessList = this.queryManager.selectListBySql(sql, condition, OrderPreprocess.class, 0, 0);
 
@@ -466,7 +466,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	 */
 	public List<RtnPreprocessStatus> rtnOrderPreprocessDiffStatus(JobBatch batch,String diffStandard) {
 		String outerJoinDiretion = ValueUtil.isEqualIgnoreCase(diffStandard, "order") ? "LEFT" : "RIGHT";
-		String sql = this.queryStore.getRtnOrderPreprocessDiffStatusQuery();
+		String sql = this.rtnQueryStore.getRtnOrderPreprocessDiffStatusQuery();
 		
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,outerJoinDiretion", batch.getDomainId(), batch.getId(),outerJoinDiretion);
 		return BeanUtil.get(IQueryManager.class).selectListBySql(sql, params, RtnPreprocessStatus.class, 0, 0);
@@ -545,7 +545,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	private List<Cell> sortCellBy(Long domainId, String rackCd) {
 		if(ValueUtil.isNotEmpty(rackCd)) {
 			Map<String, Object> params = ValueUtil.newMap("domainId,equipCds", domainId, ValueUtil.toList(rackCd));
-			String sql = queryStore.getCommonCellSortingQuery();
+			String sql = this.rtnQueryStore.getCommonCellSortingQuery();
 			return this.queryManager.selectListBySql(sql, params, Cell.class, 0, 0);
 		} else {
 			return null;

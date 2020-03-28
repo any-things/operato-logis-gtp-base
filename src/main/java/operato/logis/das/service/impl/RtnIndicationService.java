@@ -29,7 +29,7 @@ import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.elidom.sys.util.ValueUtil;
 
 /**
- * 반품 점, 소등 표시기 서비스
+ * 반품용 점, 소등 표시기 서비스
  * 
  * @author shortstop
  */
@@ -40,12 +40,12 @@ public class RtnIndicationService extends AbstractLogisService implements IDasIn
 	 * 인디케이터 벤더별 서비스 디스패처 
 	 */
 	@Autowired
-	private IndicatorDispatcher indicatorDispatcher;
+	protected IndicatorDispatcher indicatorDispatcher;
 	/**
 	 * 표시기 관련 쿼리 스토어
 	 */
 	@Autowired
-	private IndicatorQueryStore indQueryStore;
+	protected IndicatorQueryStore indQueryStore;
 
 	@Override
 	public IIndRequestService getIndicatorRequestService(JobBatch batch) {

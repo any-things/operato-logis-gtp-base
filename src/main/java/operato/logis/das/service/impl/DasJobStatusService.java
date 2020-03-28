@@ -34,53 +34,63 @@ public class DasJobStatusService extends AbstractJobStatusService {
 	
 	@Override
 	public List<JobInput> searchInputList(JobBatch batch, String equipCd, String stationCd, String selectedInputId) {
-		
-		// 태블릿의 현재 투입 정보 기준으로 -1, 0, 1, 2 정보를 표시
+		// 태블릿의 현재 투입 정보 기준으로 2, 1 (next), 0 (current), -1 (previous) 정보를 표시
 		Long domainId = batch.getDomainId();
 		JobInput currentInput = AnyEntityUtil.findEntityBy(domainId, true, JobInput.class, "*", "id", selectedInputId);
-		List<JobInput> inputList = null;
 		int inputSeq = currentInput.getInputSeq();
 		
+		// 현재 투입 시퀀스가 1이면 현재 투입 정보 하나만 리턴 
 		if(inputSeq < 2) {
-			inputList = ValueUtil.toList(currentInput);
-			
-		} else if(inputSeq >= 2 && inputSeq <= 4) {
-			Query condition = AnyOrmUtil.newConditionForExecution(domainId);
-			condition.addFilter("batchId", batch.getId());
-			condition.addFilter("inputSeq", "<=", inputSeq);
-			inputList = this.queryManager.selectList(JobInput.class, condition);
-			
-		} else {
-			Query condition = AnyOrmUtil.newConditionForExecution(domainId);
-			condition.addFilter("batchId", batch.getId());
-			condition.addFilter("inputSeq", "between", ValueUtil.toList(inputSeq - 1, inputSeq + 2));
-			inputList = this.queryManager.selectList(JobInput.class, condition);
+			return ValueUtil.toList(currentInput);
+		}
+
+		Query condition = AnyOrmUtil.newConditionForExecution(domainId);
+		condition.addFilter("batchId", batch.getId());
+		
+		if(ValueUtil.isNotEmpty(equipCd)) {
+			condition.addFilter("equipCd", equipCd);
 		}
 		
-		return inputList;
+		if(ValueUtil.isNotEmpty(stationCd)) {
+			condition.addFilter("stationCd", stationCd);
+		}
+		
+		// 현재 투입 시퀀스가 4보다 작거나 같으면 4이하 모두 조회하여 리턴  
+		if(inputSeq >= 2 && inputSeq <= 4) {
+			condition.addFilter("inputSeq", "<=", inputSeq);			
+		// 그렇지 않으면 현재 투입 시퀀스 -1 ~ 현재 투입 시퀀스 + 2까지 조회하여 리턴
+		} else {
+			condition.addFilter("inputSeq", "between", ValueUtil.toList(inputSeq - 1, inputSeq + 2));
+		}
+		
+		return this.queryManager.selectList(JobInput.class, condition);
 	}
 
 	@Override
 	public Page<JobInput> paginateInputList(JobBatch batch, String equipCd, String status, int page, int limit) {
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId(), page, limit);
 		condition.addFilter("batchId", batch.getId());
-		condition.addFilter("equipType", LogisConstants.EQUIP_TYPE_RACK);
-		condition.addFilter("equipCd", equipCd);
-		condition.addFilter("status", status);
+		
+		if(ValueUtil.isNotEmpty(equipCd)) {
+			condition.addFilter("equipCd", equipCd);
+		}
+		
+		if(ValueUtil.isNotEmpty(status)) {
+			condition.addFilter("status", status);
+		}
+		
 		return this.queryManager.selectPage(JobInput.class, condition);
 	}
 
 	@Override
 	public List<JobInstance> searchInputJobList(JobBatch batch, JobInput input, String stationCd) {
-		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
-		condition.addFilter("batchId", batch.getId());
-		condition.addFilter("inputSeq", input.getInputSeq());
-		return this.queryManager.selectList(JobInstance.class, condition);
+		String sql = this.dasQueryStore.getSearchPickingJobListQuery();
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,inputSeq,stationCd", batch.getDomainId(), batch.getId(), input.getInputSeq(), stationCd);
+		return this.queryManager.selectListBySql(sql, params, JobInstance.class, 0, 0);
 	}
 
 	@Override
 	public List<JobInstance> searchInputJobList(JobBatch batch, Map<String, Object> condition) {
-		
 		this.addBatchConditions(batch, condition);
 		return this.queryManager.selectList(JobInstance.class, condition);
 	}

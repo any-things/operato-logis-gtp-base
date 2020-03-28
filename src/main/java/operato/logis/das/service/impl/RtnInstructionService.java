@@ -31,7 +31,7 @@ import xyz.elidom.util.ValueUtil;
  * @author shortstop
  */
 @Component("rtnInstructionService")
-public class RtnInstructionService  extends AbstractQueryService  implements IInstructionService{
+public class RtnInstructionService  extends AbstractQueryService  implements IInstructionService {
 
 	/**
 	 * 반품 작업 쿼리 스토어
