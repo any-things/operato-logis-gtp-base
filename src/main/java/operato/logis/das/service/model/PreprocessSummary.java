@@ -1,11 +1,11 @@
 package operato.logis.das.service.model;
 
 /**
- * 반품 주문가공 서머리
+ * 출고 / 반품 주문가공 서머리
  * 
  * @author shortstop
  */
-public class RtnPreprocessSummary {
+public class PreprocessSummary {
 	/**
 	 * 총 SKU 수
 	 */

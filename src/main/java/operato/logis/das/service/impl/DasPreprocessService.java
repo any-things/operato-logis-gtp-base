@@ -10,8 +10,8 @@ import operato.logis.das.DasConstants;
 import operato.logis.das.query.store.DasQueryStore;
 import operato.logis.das.service.model.OrderGroup;
 import operato.logis.das.service.model.RackCells;
-import operato.logis.das.service.model.RtnPreprocessStatus;
-import operato.logis.das.service.model.RtnPreprocessSummary;
+import operato.logis.das.service.model.PreprocessStatus;
+import operato.logis.das.service.model.PreprocessSummary;
 import xyz.anythings.base.entity.Cell;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.Order;
@@ -20,6 +20,7 @@ import xyz.anythings.base.entity.Rack;
 import xyz.anythings.base.event.EventConstants;
 import xyz.anythings.base.event.main.BatchPreprocessEvent;
 import xyz.anythings.base.service.api.IPreprocessService;
+import xyz.anythings.base.service.util.StageJobConfigUtil;
 import xyz.anythings.sys.service.AbstractExecutionService;
 import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.anythings.sys.util.AnyValueUtil;
@@ -62,7 +63,7 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 		// 4. 호기 정보 조회 - 주문 가공 화면의 우측 호기 리스트
 		List<RackCells> rackCells = this.rackAssignmentStatus(batch);
 		// 5. 호기별 물량 요약 정보 - 주문 가공 화면의 우측 상단 호기별 물량 요약 정보
-		List<RtnPreprocessSummary> summaryByRacks = this.preprocessSummaryByRacks(batch);
+		List<PreprocessSummary> summaryByRacks = this.preprocessSummaryByRacks(batch);
 		// 6. 상품별 물량 요약 정보 - 주문 가공 화면의 좌측 상단 SKU 별 물량 요약 정보
 		Map<?, ?> summaryBySkus = this.preprocessSummary(batch, query);
 		// 7. 리턴 데이터 셋
@@ -256,7 +257,13 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	 * @return
 	 */
 	public List<OrderGroup> searchOrderGroupList(JobBatch batch) {
+		// 스테이지 분류 설정에서 주문 그룹과 매핑할 필드명 조회
+		String orderGroupFieldName = StageJobConfigUtil.getOrderGroupField(batch.getStageCd(), batch.getJobType());
+		// 주문 그룹 리스트 쿼리 조회
 		String sql = this.dasQueryStore.getOrderGroupListQuery();
+		// 주문 그룹 리스트 쿼리에서 CLASS_CD를 주문 그룹과 매핑할 필드명으로 Replace
+		sql = sql.replaceAll("CLASS_CD", orderGroupFieldName);
+		// 쿼리 실행
 		return this.queryManager.selectListBySql(sql, ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId()), OrderGroup.class, 0, 0);
 	}
 	
@@ -266,10 +273,10 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	 * @param batch 
 	 * @return
 	 */
-	public List<RtnPreprocessSummary> preprocessSummaryByRacks(JobBatch batch) {
+	public List<PreprocessSummary> preprocessSummaryByRacks(JobBatch batch) {
 		String sql = this.dasQueryStore.getDasPreprocessSummaryQuery();
 		Map<String, Object> params = ValueUtil.newMap("batchId", batch.getId());
-		return this.queryManager.selectListBySql(sql, params,RtnPreprocessSummary.class, 0, 0);
+		return this.queryManager.selectListBySql(sql, params,PreprocessSummary.class, 0, 0);
 	}
 	
 	/**
@@ -450,9 +457,9 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	 */
 	private int checkOrderPreprocessDifferent(JobBatch batch) {
 		// 1. 주문 테이블 기준으로 작업 배치 테이블에서 상품별로 총 주문 PCS가 다른 상품 리스트를 구한다.
-		List<RtnPreprocessStatus> diffByOrder = this.dasOrderPreprocessDiffStatus(batch, "order");
+		List<PreprocessStatus> diffByOrder = this.dasOrderPreprocessDiffStatus(batch, "order");
 		// 2. 작업 배치 테이블 기준으로 주문 테이블과 상품별로 총 주문 PCS가 다른 상품 리스트를 구한다.
-		List<RtnPreprocessStatus> diffByPreprocess = this.dasOrderPreprocessDiffStatus(batch, "preprocess");
+		List<PreprocessStatus> diffByPreprocess = this.dasOrderPreprocessDiffStatus(batch, "preprocess");
 		// 3. 두 정보가 하나라도 있으면 일치하지 않는 것이므로 일치하지 않은 개수를 리턴한다.
 		return ValueUtil.isEmpty(diffByOrder) && ValueUtil.isEmpty(diffByPreprocess) ? 0 : diffByOrder.size() + diffByPreprocess.size();
 	}
@@ -464,12 +471,12 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	 * @param diffStandard
 	 * @return
 	 */
-	public List<RtnPreprocessStatus> dasOrderPreprocessDiffStatus(JobBatch batch,String diffStandard) {
+	public List<PreprocessStatus> dasOrderPreprocessDiffStatus(JobBatch batch,String diffStandard) {
 		String outerJoinDiretion = ValueUtil.isEqualIgnoreCase(diffStandard, "order") ? "LEFT" : "RIGHT";
 		String sql = this.dasQueryStore.getDasOrderPreprocessDiffStatusQuery();
 		
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,outerJoinDiretion", batch.getDomainId(), batch.getId(),outerJoinDiretion);
-		return BeanUtil.get(IQueryManager.class).selectListBySql(sql, params, RtnPreprocessStatus.class, 0, 0);
+		return BeanUtil.get(IQueryManager.class).selectListBySql(sql, params, PreprocessStatus.class, 0, 0);
 	}
 	 
 	/**

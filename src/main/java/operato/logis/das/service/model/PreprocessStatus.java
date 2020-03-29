@@ -1,11 +1,11 @@
 package operato.logis.das.service.model;
 
 /**
- * 반품 주문 가공 정보
+ * 출고 / 반품 주문 가공 정보
  * 
  * @author shortstop
  */
-public class RtnPreprocessStatus {
+public class PreprocessStatus {
 	/**
 	 * 상품 코드 
 	 */
@@ -24,10 +24,10 @@ public class RtnPreprocessStatus {
 	private int orderPcsQty;
 	
 	
-	public RtnPreprocessStatus() {
+	public PreprocessStatus() {
 	}
 	
-	public RtnPreprocessStatus(String cellAssgnCd, String equipCd, Integer orderSkuQty, Integer orderPcsQty) {
+	public PreprocessStatus(String cellAssgnCd, String equipCd, Integer orderSkuQty, Integer orderPcsQty) {
 		this.cellAssgnCd = cellAssgnCd;
 		this.equipCd = equipCd;
 		this.orderSkuQty = orderSkuQty;
