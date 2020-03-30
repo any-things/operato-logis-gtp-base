@@ -7,76 +7,76 @@ package operato.logis.das.service.model;
  */
 public class PreprocessSummary {
 	/**
-	 * 총 SKU 수
+	 * 총 주문 수 (출고 : 매장 수, 반품 : 상품 수)
 	 */
-	private String totalSkus;
+	private String totalOrderCnt;
 	/**
-	 * 할당된 SKU 수
+	 * 할당된 주문 수
 	 */
-	private String assignedSku;
+	private String assignedOrderCnt;
 	/**
-	 * 남은 SKU 수
+	 * 남은 주문 수
 	 */
-	private String remainSku;
+	private String remainOrderCnt;
 	/**
 	 * 총 주문 PCS
 	 */
-	private String totalOrdersPcs;
+	private String totalOrderPcs;
 	/**
-	 * 할당된 PCS
+	 * 할당된 주문 PCS
 	 */
-	private String assignedPcs;
+	private String assignedOrderPcs;
 	/**
-	 * 남은 PCS
+	 * 남은 주문 PCS
 	 */
-	private String remainPcs;
+	private String remainOrderPcs;
 	
-	public String getTotalSkus() {
-		return totalSkus;
+	public String getTotalOrderCnt() {
+		return totalOrderCnt;
 	}
 
-	public void setTotalSkus(String totalSkus) {
-		this.totalSkus = totalSkus;
+	public void setTotalOrderCnt(String totalOrderCnt) {
+		this.totalOrderCnt = totalOrderCnt;
 	}
 
-	public String getAssignedSku() {
-		return assignedSku;
+	public String getAssignedOrderCnt() {
+		return assignedOrderCnt;
 	}
 
-	public void setAssignedSku(String assignedSku) {
-		this.assignedSku = assignedSku;
+	public void setAssignedOrderCnt(String assignedOrderCnt) {
+		this.assignedOrderCnt = assignedOrderCnt;
 	}
 
-	public String getRemainSku() {
-		return remainSku;
+	public String getRemainOrderCnt() {
+		return remainOrderCnt;
 	}
 
-	public void setRemainSku(String remainSku) {
-		this.remainSku = remainSku;
+	public void setRemainOrderCnt(String remainOrderCnt) {
+		this.remainOrderCnt = remainOrderCnt;
 	}
 
-	public String getTotalOrdersPcs() {
-		return totalOrdersPcs;
+	public String getTotalOrderPcs() {
+		return totalOrderPcs;
 	}
 
-	public void setTotalOrdersPcs(String totalOrdersPcs) {
-		this.totalOrdersPcs = totalOrdersPcs;
+	public void setTotalOrderPcs(String totalOrderPcs) {
+		this.totalOrderPcs = totalOrderPcs;
 	}
 
-	public String getAssignedPcs() {
-		return assignedPcs;
+	public String getAssignedOrderPcs() {
+		return assignedOrderPcs;
 	}
 
-	public void setAssignedPcs(String assignedPcs) {
-		this.assignedPcs = assignedPcs;
+	public void setAssignedOrderPcs(String assignedOrderPcs) {
+		this.assignedOrderPcs = assignedOrderPcs;
 	}
 
-	public String getRemainPcs() {
-		return remainPcs;
+	public String getRemainOrderPcs() {
+		return remainOrderPcs;
 	}
 
-	public void setRemainPcs(String remainPcs) {
-		this.remainPcs = remainPcs;
+	public void setRemainOrderPcs(String remainOrderPcs) {
+		this.remainOrderPcs = remainOrderPcs;
 	}
 
 }

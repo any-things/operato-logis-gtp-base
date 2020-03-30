@@ -149,7 +149,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	public void assignRackByManual(JobBatch batch, String equipCd, List<OrderPreprocess> items) {
 		// 1. 이미 랙이 지정 되어 있는 상품 개수 조회
 		Rack rack = Rack.findByRackCd(batch.getDomainId(), equipCd, false);
-		Map<String, Object> params = ValueUtil.newMap("batchId,equipCd", batch.getId(), equipCd);
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,equipCd", batch.getDomainId(), batch.getId(), equipCd);
 		int assignedCount = this.queryManager.selectSize(OrderPreprocess.class, params);
 
 		// 2. 새로 랙에 할당할 상품 개수 합이 랙의 셀 보다 많을 때 예외 발생
@@ -275,7 +275,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	 */
 	public List<PreprocessSummary> preprocessSummaryByRacks(JobBatch batch) {
 		String sql = this.rtnQueryStore.getRtnPreprocessSummaryQuery();
-		Map<String, Object> params = ValueUtil.newMap("batchId", batch.getId());
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId());
 		return this.queryManager.selectListBySql(sql, params,PreprocessSummary.class, 0, 0);
 	}
 	
@@ -372,8 +372,13 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 		this.deletePreprocess(batch);
 		
 		// 2. 주문 가공 데이터를 생성하기 위해 주문 데이터를 조회
+		String cellMappingField = StageJobConfigUtil.getCellMappingTargetField(batch.getStageCd(), batch.getJobType());
+		boolean cellSkuMapping = ValueUtil.isEmpty(cellMappingField) ? true : cellMappingField.toLowerCase().startsWith("sku") ? true : false;
+		boolean cellShopMapping = ValueUtil.isEmpty(cellMappingField) ? true : cellMappingField.toLowerCase().startsWith("shop") ? true : false;
+		boolean cellOrderMapping = ValueUtil.isEmpty(cellMappingField) ? true : cellMappingField.toLowerCase().startsWith("order") ? true : false;
+		
 		String sql = this.rtnQueryStore.getRtnGeneratePreprocessQuery();
-		Map<String, Object> condition = ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId());
+		Map<String, Object> condition = ValueUtil.newMap("domainId,batchId,cellSkuMapping,cellShopMapping,cellOrderMapping", batch.getDomainId(), batch.getId(), cellSkuMapping, cellShopMapping, cellOrderMapping);
 		List<OrderPreprocess> preprocessList = this.queryManager.selectListBySql(sql, condition, OrderPreprocess.class, 0, 0);
 
 		// 3. 주문 가공 데이터를 추가

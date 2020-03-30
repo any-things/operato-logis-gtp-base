@@ -177,24 +177,24 @@ public class DasReceiveBatchService extends AbstractQueryService {
 				return receipt;
 			}
 						
-			// 3. BatchReceiptItem 상태 업데이트  - 진행 중 
+			// 3. BatchReceiptItem 상태 업데이트  - 진행 중
 			item.updateStatusImmediately(LogisConstants.COMMON_STATUS_RUNNING, null);
 			
-			// 4. JobBatch 생성 
+			// 4. JobBatch 생성
 			JobBatch batch = JobBatch.createJobBatch(item.getBatchId(), item.getJobSeq(), receipt, item);
 			
-			// 5. 데이터 복사  
+			// 5. 데이터 복사
 			this.cloneData(item.getBatchId(), jobSeq, "wms_if_orders", sourceFields, targetFields, fieldNames, item.getComCd(), item.getAreaCd(), item.getStageCd(), item.getWmsBatchNo(), LogisConstants.N_CAP_STRING);
 			
-			// 6. 셀과 매핑될 필드명을 스테이지 별 설정에서 조회 
+			// 6. 셀과 매핑될 필드명을 스테이지 별 설정에서 조회
 			/*String classCd = StageJobConfigUtil.getCellMappingTargetField(item.getStageCd(), item.getJobType());
 			String sql = "update orders set class_cd = :classCd where domain_id = :domainId and batch_id = :batchId";
 			this.queryManager.executeBySql(sql, ValueUtil.newMap("domainId,batchId,classCd", item.getDomainId(), item.getBatchId(), classCd));*/
 			
-			// 7. JobBatch 상태 변경  
+			// 7. JobBatch 상태 변경
 			batch.updateStatusImmediately(LogisConstants.isB2CJobType(batch.getJobType())? JobBatch.STATUS_READY : JobBatch.STATUS_WAIT);
 			
-			// 8. batchReceiptItem 상태 업데이트 
+			// 8. batchReceiptItem 상태 업데이트
 			item.updateStatusImmediately(LogisConstants.COMMON_STATUS_FINISHED, null);
 			
 			// 9.Wms_if_order 상태 업데이트

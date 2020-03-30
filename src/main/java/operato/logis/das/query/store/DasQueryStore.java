@@ -62,7 +62,7 @@ public class DasQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getDasGeneratePreprocessQuery() {
-		return this.getQueryByPath("preprocess/DasGeneratePreprocess");
+		return this.getQueryByPath("preprocess/GeneratePreprocess");
 	}
 	
 	/**
@@ -73,7 +73,6 @@ public class DasQueryStore extends AbstractQueryStore {
 	public String getOrderGroupListQuery() {
 		return this.getQueryByPath("preprocess/OrderGroupList");
 	}
-	
 	
 	/**
 	 * 작업 배치 별 주문 가공 정보에서 호기별로 상품 할당 상태를 조회 쿼리
@@ -90,7 +89,7 @@ public class DasQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getDasPreprocessSummaryQuery() {
-		return this.getQueryByPath("preprocess/DasPreprocessSummary");
+		return this.getQueryByPath("preprocess/PreprocessSummary");
 	}
 	
 	/**
@@ -99,8 +98,8 @@ public class DasQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getDasBatchGroupPreprocessSummaryQuery() {
-		return this.getQueryByPath("preprocess/DasBatchGroupPreprocessSummary");
-	} 
+		return this.getQueryByPath("preprocess/BatchGroupPreprocessSummary");
+	}
 	
 	/**
 	 * 작업 배치의 상품별 물량 할당 요약 정보 조회 쿼리
@@ -108,8 +107,8 @@ public class DasQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getDasResetRackCellQuery() {
-		return this.getQueryByPath("preprocess/DasResetRackCell");
-	} 
+		return this.getQueryByPath("preprocess/ResetRackCell");
+	}
 	
 	/**
 	 * 작업 배치 주문 정보의 SKU 별 총 주문 개수와 주문 가공 정보(OrderPreprocess)의 SKU 별 총 주문 개수를
@@ -119,7 +118,7 @@ public class DasQueryStore extends AbstractQueryStore {
 	 */
 	public String getDasOrderPreprocessDiffStatusQuery() {
 		return this.getQueryByPath("preprocess/DasOrderPreprocessDiffStatus");
-	} 
+	}
 	
 	/**
 	 * 주문 가공 정보 호기 데이터 확인
@@ -128,7 +127,7 @@ public class DasQueryStore extends AbstractQueryStore {
 	 */
 	public String getDasPreprocessRackSummaryQuery() {
 		return this.getQueryByPath("preprocess/DasPreprocessRackSummary");
-	} 
+	}
 	
 	/**
 	 * 병렬 호기인 경우 주문 가공 복제 쿼리
@@ -137,7 +136,7 @@ public class DasQueryStore extends AbstractQueryStore {
 	 */
 	public String getDasPararellRackPreprocessCloneQuery() {
 		return this.getQueryByPath("preprocess/DasPararellRackPreprocessClone");
-	} 
+	}
 	
 	/**
 	 * 해당 배치의 주문 정보들의 호기
@@ -146,7 +145,7 @@ public class DasQueryStore extends AbstractQueryStore {
 	 */
 	public String getDasBatchIdOfOrderUpdateQuery() {
 		return this.getQueryByPath("preprocess/DasBatchIdOfOrderUpdate");
-	} 
+	}
 	
 	/**
 	 * 작업 지시 시점에 작업 데이터 생성
@@ -155,7 +154,7 @@ public class DasQueryStore extends AbstractQueryStore {
 	 */
 	public String getDasGenerateJobsByInstructionQuery() {
 		return this.getQueryByPath("instruction/DasGenerateJobs");
-	} 
+	}
 	
 	/**
 	 * 작업 지시를 위해 주문 가공 완료 요약 (거래처 개수, 상품 개수, PCS) 정보 조회
@@ -164,7 +163,7 @@ public class DasQueryStore extends AbstractQueryStore {
 	 */
 	public String getDasInstructionSummaryDataQuery() {
 		return this.getQueryByPath("instruction/DasInstructionSummaryData");
-	} 
+	}
 	
 	/**
 	 * 작업 지시를 위한 작업 데이터 요약 정보 조회
@@ -173,7 +172,7 @@ public class DasQueryStore extends AbstractQueryStore {
 	 */
 	public String getDasJobInstancesSummaryDataQuery() {
 		return this.getQueryByPath("instruction/DasJobInstancesSummaryData");
-	} 
+	}
 	
 	/**
 	 * 피킹 작업 현황 조회
