@@ -131,7 +131,8 @@ public class RtnInstructionService  extends AbstractQueryService  implements IIn
 		// 2. 배치 호기 코드가 존재하면
 		Rack rack = AnyEntityUtil.findEntityBy(domainId, true, Rack.class, null, "domainId,rackCd", domainId, rackCd);
 		rack.setBatchId(null);
-		this.queryManager.update(rack, "batchId", "updaterId", "updatedAt");
+		rack.setStatus(null);
+		this.queryManager.update(rack, "batchId", "status", "updaterId", "updatedAt");
 		
 		// 3. 작업 배치 정보 업데이트 
 		batch.setStatus(JobBatch.STATUS_READY);
@@ -225,7 +226,7 @@ public class RtnInstructionService  extends AbstractQueryService  implements IIn
 		// 5. 주문 가공 정보 배치 ID 업데이트
 		AnyOrmUtil.updateBatch(preprocesses, 100, "batchId");
 		// 6. 랙 정보 배치 ID 업데이트
-		AnyOrmUtil.updateBatch(rackList, 100, "status", "batchId");
+		AnyOrmUtil.updateBatch(rackList, 100, "status", "batchId", "jobType");
 		// 7. 결과 건수 리턴
 		return preprocesses.size();
 	}
@@ -283,8 +284,9 @@ public class RtnInstructionService  extends AbstractQueryService  implements IIn
 		this.generateWorkCellBy(batch, equipPreprocesses);
 		
 		// 4. Rack 업데이트
-		rack.setStatus(JobBatch.STATUS_RUNNING);
+		rack.setJobType(batch.getJobType());
 		rack.setBatchId(batch.getId());
+		rack.setStatus(JobBatch.STATUS_RUNNING);
 	}
 	
 	/**
