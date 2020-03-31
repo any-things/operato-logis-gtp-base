@@ -87,7 +87,7 @@ public class RtnAssortService extends AbstractClassificationService implements I
 			}
 		}
 		
-		// 설정에서 작업 지시 시점에 박스 매핑 표시 여부 조회 		
+		// 설정에서 작업 지시 시점에 박스 매핑 표시 여부 조회
 		if(RtnBatchJobConfigUtil.isIndOnAssignedCellWhenInstruction(batch)) {
 			// 게이트웨이 리부팅 시에는 리부팅 프로세스 완료시까지 약 1분여간 기다린다.
 			if(gwReboot) {

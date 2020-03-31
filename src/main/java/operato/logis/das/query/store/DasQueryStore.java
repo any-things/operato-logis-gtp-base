@@ -152,25 +152,25 @@ public class DasQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getDasGenerateJobsByInstructionQuery() {
-		return this.getQueryByPath("instruction/DasGenerateJobs");
+		return this.getQueryByPath("instruction/GenerateJobs");
 	}
 	
 	/**
-	 * 작업 지시를 위해 주문 가공 완료 요약 (거래처 개수, 상품 개수, PCS) 정보 조회
+	 * 작업 지시를 위해 주문 가공 완료 요약 (주문 개수, 상품 개수, PCS) 정보 조회
 	 *
 	 * @return
 	 */
 	public String getDasInstructionSummaryDataQuery() {
-		return this.getQueryByPath("instruction/DasInstructionSummaryData");
+		return this.getQueryByPath("instruction/InstructionSummaryData");
 	}
 	
 	/**
-	 * 작업 지시를 위한 작업 데이터 요약 정보 조회
+	 * 작업 마감을 위한 작업 데이터 요약 정보 조회
 	 *
 	 * @return
 	 */
-	public String getDasJobInstancesSummaryDataQuery() {
-		return this.getQueryByPath("instruction/DasJobInstancesSummaryData");
+	public String getDasBatchJobStatusQuery() {
+		return this.getQueryByPath("instruction/BatchStatusSummary");
 	}
 	
 	/**
