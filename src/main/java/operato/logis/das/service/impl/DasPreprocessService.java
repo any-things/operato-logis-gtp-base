@@ -154,8 +154,8 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 		// 2. 새로 랙에 할당할 상품 개수 합이 랙의 셀 보다 많을 때 예외 발생
 		int cellCount = rack.validLocationCount();
 		if(cellCount < assignedCount + items.size()) {
-			// 랙의 빈 셀 개수보다 할당할 상품 수가 많습니다
-			throw ThrowUtil.newValidationErrorWithNoLog(true, "MPS_MISMATCH_CUST_AND_EMPTY_LOCATION");
+			// 랙의 빈 셀 개수보다 할당할 주문 수가 많습니다
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "MISMATCH_ORDER_AND_EMPTY_CELL");
 		}
 		
 		// 3. 랙 지정
@@ -165,9 +165,9 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 		}
 		
 		// 4. 랙에 배치ID 매핑
-		rack.setBatchId(batch.getId()); 
-		rack.setStatus(JobBatch.STATUS_WAIT);
-		this.queryManager.update(rack, "batchId", "status");
+		//rack.setBatchId(batch.getId()); 
+		//rack.setStatus(JobBatch.STATUS_WAIT);
+		//this.queryManager.update(rack, "batchId", "status");
 		
 		// 5. 주문 가공 정보 업데이트 
 		AnyOrmUtil.updateBatch(items, 100, "equipCd", "equipNm", "updatedAt");
@@ -279,40 +279,6 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	}
 	
 	/**
-	 * 작업 배치의 상품별 물량 할당 요약 정보 조회
-	 * 
-	 * @param batch
-	 * @param query
-	 * @return
-	 */
-	/*public Map<?, ?> preprocessSummary(JobBatch batch, Query query) {
-		String rackCd = AnyValueUtil.getFilterValue(query, "rack_cd");
-		String classCd = AnyValueUtil.getFilterValue(query, "class_cd");
-
-		if(AnyValueUtil.isEmpty(rackCd)) {
-			rackCd = DasConstants.ALL_CAP_STRING;
-		}
-		
-		if(AnyValueUtil.isEmpty(classCd)) {
-			classCd = DasConstants.ALL_CAP_STRING;
-		}
-
-		Map<String,Object> params =
-			ValueUtil.newMap("domainId,batchId,rackCd,orderGroup", batch.getDomainId(), batch.getId(), rackCd, classCd);
-
-		if(AnyValueUtil.isEqualIgnoreCase(classCd, "is blank")) {
-			params.remove("classCd");
-		}
-		
-		if(AnyValueUtil.isEqualIgnoreCase(rackCd, "is blank")) {
-			params.remove("rackCd");
-		}
-
-		String sql = this.dasQueryStore.getDasBatchGroupPreprocessSummaryQuery();
-		return this.queryManager.selectBySql(sql, params, Map.class);
-	}*/
-	
-	/**
 	 * 배치 리셋을 위한 배치 정보 체크
 	 *
 	 * @param batch
@@ -324,7 +290,7 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 		if(!ValueUtil.isEqualIgnoreCase(batchStatus, JobBatch.STATUS_WAIT) &&
 		   !ValueUtil.isEqualIgnoreCase(batchStatus, JobBatch.STATUS_READY)) {
 			 // 주문 가공 대기, 작업 지시 대기 상태에서만 할당정보 리셋이 가능합니다.
-	 		 throw ThrowUtil.newValidationErrorWithNoLog(true, "MPS_ONLY_ALLOWED_RESET_ASSIGN_ONLY");
+	 		 throw ThrowUtil.newValidationErrorWithNoLog(true, "ONLY_ALLOWED_RESET_ASSIGN_ONLY");
 		}
 
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
@@ -334,7 +300,7 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 		// 분류 작업 시작한 개수가 있는지 체크
 		if(this.queryManager.selectSize(Order.class, condition) > 0) {
 			// 분류 작업시작 이후여서 할당정보 리셋 불가능합니다.
-			throw ThrowUtil.newValidationErrorWithNoLog(true, "MPS_NOT_ALLOWED_RESET_ASSIGN_AFTER_START_JOB");
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "NOT_ALLOWED_RESET_ASSIGN_AFTER_START_JOB");
 		}
 
 		return batch;
@@ -413,16 +379,16 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 		// 3. 주문에서 서머리한 정보와 주문 가공 정보 개수가 맞는지 체크
 		if(this.checkOrderPreprocessDifferent(batch) > 0) {
 			// 수신한 주문 개수와 주문가공 개수가 다릅니다
-			throw ThrowUtil.newValidationErrorWithNoLog(true, "MPS_MISMATCH_RECEIVED_AND_PREPROCESSED");
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "MISMATCH_RECEIVED_AND_PREPROCESSED");
 		}
 
-		// 4. 랙 지정이 안 된 SKU가 존재하는지 체크
+		// 4. 랙 지정이 안 된 매장이 존재하는지 체크
 		if(checkRackAssigned) {
 			int notAssignedCount = this.preprocessCount(batch, "equip_cd", "is_blank", OrmConstants.EMPTY_STRING);
 			
 			if(notAssignedCount > 0) {
 				// 랙 지정이 안된 상품이 (notAssignedCount)개 있습니다.
-				throw ThrowUtil.newValidationErrorWithNoLog(true, "MPS_EXIST_NOT_ASSIGNED_SKUS", ValueUtil.toList("" + notAssignedCount));
+				throw ThrowUtil.newValidationErrorWithNoLog(true, "EXIST_NOT_ASSIGNED_ORDERS", ValueUtil.toList("" + notAssignedCount));
 			}
 		}
 	}
@@ -505,7 +471,7 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 				this.queryManager.update(batch, "status");
 			} else {
 				// 5. 랙 [subBatch.getEquipCd()]를 사용할 수 없습니다.
-				throw ThrowUtil.newValidationErrorWithNoLog(true, "MPS_CANNOT_USE_", equipList);
+				throw ThrowUtil.newValidationErrorWithNoLog(true, "CANNOT_USE_RACK", equipList);
 			}
 		}
 	}
@@ -536,7 +502,7 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 			
 			if(equipPreprocesses.size() > cells.size()) {
 				// 2. 주문 가공 (상품) 개수가 할당될 셀 개수보다 많으면 에러 - 랙에 상품을 할당할 셀이 존재하지 않습니다
-				throw ThrowUtil.newValidationErrorWithNoLog(true, "MPS_MISMATCH_CUST_AND_EMPTY_LOCATION");
+				throw ThrowUtil.newValidationErrorWithNoLog(true, "MISMATCH_ORDER_AND_EMPTY_CELL");
 			}
 			
 			if(ValueUtil.isNotEmpty(cells)) {
@@ -584,4 +550,37 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 		return preprocesses.size();
 	}
 
+	/**
+	 * 작업 배치의 상품별 물량 할당 요약 정보 조회
+	 * 
+	 * @param batch
+	 * @param query
+	 * @return
+	 */
+	/*public Map<?, ?> preprocessSummary(JobBatch batch, Query query) {
+		String rackCd = AnyValueUtil.getFilterValue(query, "rack_cd");
+		String classCd = AnyValueUtil.getFilterValue(query, "class_cd");
+
+		if(AnyValueUtil.isEmpty(rackCd)) {
+			rackCd = DasConstants.ALL_CAP_STRING;
+		}
+		
+		if(AnyValueUtil.isEmpty(classCd)) {
+			classCd = DasConstants.ALL_CAP_STRING;
+		}
+
+		Map<String,Object> params =
+			ValueUtil.newMap("domainId,batchId,rackCd,orderGroup", batch.getDomainId(), batch.getId(), rackCd, classCd);
+
+		if(AnyValueUtil.isEqualIgnoreCase(classCd, "is blank")) {
+			params.remove("classCd");
+		}
+		
+		if(AnyValueUtil.isEqualIgnoreCase(rackCd, "is blank")) {
+			params.remove("rackCd");
+		}
+
+		String sql = this.dasQueryStore.getDasBatchGroupPreprocessSummaryQuery();
+		return this.queryManager.selectBySql(sql, params, Map.class);
+	}*/
 }

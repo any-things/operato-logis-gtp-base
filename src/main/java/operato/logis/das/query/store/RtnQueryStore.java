@@ -111,13 +111,12 @@ public class RtnQueryStore extends AbstractQueryStore {
 	}
 	
 	/**
-	 * 작업 배치 주문 정보의 SKU 별 총 주문 개수와 주문 가공 정보(RtnPreprocess)의 SKU 별 총 주문 개수를
-	 * SKU 별로 비교하여 같지 않은 거래처의 정보만 조회하는 쿼리
+	 * 작업 배치 주문 정보의 SKU 별 총 주문 개수와 주문 가공 정보(RtnPreprocess)의 SKU 별 총 주문 개수를 비교하여 같지 않은 SKU 정보만 조회하는 쿼리
 	 *
 	 * @return
 	 */
 	public String getRtnOrderPreprocessDiffStatusQuery() {
-		return this.getQueryByPath("preprocess/RtnOrderPreprocessDiffStatus");
+		return this.getQueryByPath("preprocess/OrderPreprocessDiffStatus");
 	}
 	
 	/**
@@ -126,7 +125,7 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getRtnPreprocessRackSummaryQuery() {
-		return this.getQueryByPath("preprocess/RtnPreprocessRackSummary");
+		return this.getQueryByPath("preprocess/PreprocessRackSummary");
 	}
 	
 	/**
@@ -135,16 +134,16 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getRtnPararellRackPreprocessCloneQuery() {
-		return this.getQueryByPath("preprocess/RtnPararellRackPreprocessClone");
+		return this.getQueryByPath("preprocess/PararellRackPreprocessClone");
 	}
 	
 	/**
-	 * 해당 배치의 주문 정보들의 호기
+	 * 주문정보의 배치 ID 업데이트
 	 *
 	 * @return
 	 */
-	public String getRtnBatchIdOfOrderUpdateQuery() {
-		return this.getQueryByPath("preprocess/RtnBatchIdOfOrderUpdate");
+	public String getRtnUpdateBatchOfOrdersQuery() {
+		return this.getQueryByPath("preprocess/UpdateBatchOfOrders");
 	}
 	
 	/**

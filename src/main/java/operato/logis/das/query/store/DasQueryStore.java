@@ -111,13 +111,12 @@ public class DasQueryStore extends AbstractQueryStore {
 	}
 	
 	/**
-	 * 작업 배치 주문 정보의 SKU 별 총 주문 개수와 주문 가공 정보(OrderPreprocess)의 SKU 별 총 주문 개수를
-	 * SKU 별로 비교하여 같지 않은 거래처의 정보만 조회하는 쿼리
+	 * 작업 배치 주문 정보의 매장 별 총 주문 개수와 주문 가공 정보(OrderPreprocess)의 매장 별 총 주문 개수를 비교하여 같지 않은 거래처의 정보만 조회하는 쿼리
 	 *
 	 * @return
 	 */
 	public String getDasOrderPreprocessDiffStatusQuery() {
-		return this.getQueryByPath("preprocess/DasOrderPreprocessDiffStatus");
+		return this.getQueryByPath("preprocess/OrderPreprocessDiffStatus");
 	}
 	
 	/**
@@ -126,7 +125,7 @@ public class DasQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getDasPreprocessRackSummaryQuery() {
-		return this.getQueryByPath("preprocess/DasPreprocessRackSummary");
+		return this.getQueryByPath("preprocess/PreprocessRackSummary");
 	}
 	
 	/**
@@ -135,16 +134,16 @@ public class DasQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getDasPararellRackPreprocessCloneQuery() {
-		return this.getQueryByPath("preprocess/DasPararellRackPreprocessClone");
+		return this.getQueryByPath("preprocess/PararellRackPreprocessClone");
 	}
 	
 	/**
-	 * 해당 배치의 주문 정보들의 호기
+	 * 주문 정보의 배치 ID 업데이트
 	 *
 	 * @return
 	 */
-	public String getDasBatchIdOfOrderUpdateQuery() {
-		return this.getQueryByPath("preprocess/DasBatchIdOfOrderUpdate");
+	public String getDasUpdateBatchOfOrdersQuery() {
+		return this.getQueryByPath("preprocess/UpdateBatchOfOrders");
 	}
 	
 	/**
