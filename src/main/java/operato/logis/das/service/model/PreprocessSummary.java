@@ -7,75 +7,111 @@ package operato.logis.das.service.model;
  */
 public class PreprocessSummary {
 	/**
+	 * 총 셀 수
+	 */
+	private Integer totalCellCnt;
+	/**
 	 * 총 주문 수 (출고 : 매장 수, 반품 : 상품 수)
 	 */
-	private String totalOrderCnt;
+	private Integer totalOrderCnt;
+	/**
+	 * 할당된 셀 수
+	 */
+	private Integer assignedCellCnt;
 	/**
 	 * 할당된 주문 수
 	 */
-	private String assignedOrderCnt;
+	private Integer assignedOrderCnt;
+	/**
+	 * 남은 셀 수
+	 */
+	private Integer remainCellCnt;
 	/**
 	 * 남은 주문 수
 	 */
-	private String remainOrderCnt;
+	private Integer remainOrderCnt;
 	/**
 	 * 총 주문 PCS
 	 */
-	private String totalOrderPcs;
+	private Integer totalOrderPcs;
 	/**
 	 * 할당된 주문 PCS
 	 */
-	private String assignedOrderPcs;
+	private Integer assignedOrderPcs;
 	/**
 	 * 남은 주문 PCS
 	 */
-	private String remainOrderPcs;
+	private Integer remainOrderPcs;
 	
-	public String getTotalOrderCnt() {
+	public Integer getTotalCellCnt() {
+		return totalCellCnt;
+	}
+	
+	public void setTotalCellCnt(Integer totalCellCnt) {
+		this.totalCellCnt = totalCellCnt;
+	}
+	
+	public Integer getTotalOrderCnt() {
 		return totalOrderCnt;
 	}
-
-	public void setTotalOrderCnt(String totalOrderCnt) {
+	
+	public void setTotalOrderCnt(Integer totalOrderCnt) {
 		this.totalOrderCnt = totalOrderCnt;
 	}
-
-	public String getAssignedOrderCnt() {
+	
+	public Integer getAssignedCellCnt() {
+		return assignedCellCnt;
+	}
+	
+	public void setAssignedCellCnt(Integer assignedCellCnt) {
+		this.assignedCellCnt = assignedCellCnt;
+	}
+	
+	public Integer getAssignedOrderCnt() {
 		return assignedOrderCnt;
 	}
-
-	public void setAssignedOrderCnt(String assignedOrderCnt) {
+	
+	public void setAssignedOrderCnt(Integer assignedOrderCnt) {
 		this.assignedOrderCnt = assignedOrderCnt;
 	}
-
-	public String getRemainOrderCnt() {
+	
+	public Integer getRemainCellCnt() {
+		return remainCellCnt;
+	}
+	
+	public void setRemainCellCnt(Integer remainCellCnt) {
+		this.remainCellCnt = remainCellCnt;
+	}
+	
+	public Integer getRemainOrderCnt() {
 		return remainOrderCnt;
 	}
-
-	public void setRemainOrderCnt(String remainOrderCnt) {
+	
+	public void setRemainOrderCnt(Integer remainOrderCnt) {
 		this.remainOrderCnt = remainOrderCnt;
 	}
-
-	public String getTotalOrderPcs() {
+	
+	public Integer getTotalOrderPcs() {
 		return totalOrderPcs;
 	}
-
-	public void setTotalOrderPcs(String totalOrderPcs) {
+	
+	public void setTotalOrderPcs(Integer totalOrderPcs) {
 		this.totalOrderPcs = totalOrderPcs;
 	}
-
-	public String getAssignedOrderPcs() {
+	
+	public Integer getAssignedOrderPcs() {
 		return assignedOrderPcs;
 	}
-
-	public void setAssignedOrderPcs(String assignedOrderPcs) {
+	
+	public void setAssignedOrderPcs(Integer assignedOrderPcs) {
 		this.assignedOrderPcs = assignedOrderPcs;
 	}
-
-	public String getRemainOrderPcs() {
+	
+	public Integer getRemainOrderPcs() {
 		return remainOrderPcs;
 	}
-
-	public void setRemainOrderPcs(String remainOrderPcs) {
+	
+	public void setRemainOrderPcs(Integer remainOrderPcs) {
 		this.remainOrderPcs = remainOrderPcs;
 	}
 

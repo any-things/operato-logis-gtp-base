@@ -6,12 +6,11 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import operato.logis.das.DasConstants;
 import operato.logis.das.query.store.DasQueryStore;
 import operato.logis.das.service.model.OrderGroup;
-import operato.logis.das.service.model.RackCells;
 import operato.logis.das.service.model.PreprocessStatus;
 import operato.logis.das.service.model.PreprocessSummary;
+import operato.logis.das.service.model.RackCells;
 import xyz.anythings.base.entity.Cell;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.Order;
@@ -63,11 +62,11 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 		// 4. 호기 정보 조회 - 주문 가공 화면의 우측 호기 리스트
 		List<RackCells> rackCells = this.rackAssignmentStatus(batch);
 		// 5. 호기별 물량 요약 정보 - 주문 가공 화면의 우측 상단 호기별 물량 요약 정보
-		List<PreprocessSummary> summaryByRacks = this.preprocessSummaryByRacks(batch);
+		PreprocessSummary summary = this.preprocessSummaryByRacks(batch);
 		// 6. 상품별 물량 요약 정보 - 주문 가공 화면의 좌측 상단 SKU 별 물량 요약 정보
-		Map<?, ?> summaryBySkus = this.preprocessSummary(batch, query);
+		//Map<?, ?> summaryBySkus = this.preprocessSummary(batch, query);
 		// 7. 리턴 데이터 셋
-		return ValueUtil.newMap("regions,groups,preprocesses,summary,group_summary", rackCells, groups, preprocesses, summaryByRacks, summaryBySkus);
+		return ValueUtil.newMap("racks,groups,preprocesses,summary", rackCells, groups, preprocesses, summary);
 	}
 
 	@Override
@@ -273,10 +272,10 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	 * @param batch 
 	 * @return
 	 */
-	public List<PreprocessSummary> preprocessSummaryByRacks(JobBatch batch) {
+	public PreprocessSummary preprocessSummaryByRacks(JobBatch batch) {
 		String sql = this.dasQueryStore.getDasPreprocessSummaryQuery();
-		Map<String, Object> params = ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId());
-		return this.queryManager.selectListBySql(sql, params,PreprocessSummary.class, 0, 0);
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,stageCd,jobType", batch.getDomainId(), batch.getId(), batch.getStageCd(), batch.getJobType());
+		return this.queryManager.selectBySql(sql, params,PreprocessSummary.class);
 	}
 	
 	/**
@@ -286,7 +285,7 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	 * @param query
 	 * @return
 	 */
-	public Map<?, ?> preprocessSummary(JobBatch batch, Query query) {
+	/*public Map<?, ?> preprocessSummary(JobBatch batch, Query query) {
 		String rackCd = AnyValueUtil.getFilterValue(query, "rack_cd");
 		String classCd = AnyValueUtil.getFilterValue(query, "class_cd");
 
@@ -311,7 +310,7 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 
 		String sql = this.dasQueryStore.getDasBatchGroupPreprocessSummaryQuery();
 		return this.queryManager.selectBySql(sql, params, Map.class);
-	}
+	}*/
 	
 	/**
 	 * 배치 리셋을 위한 배치 정보 체크

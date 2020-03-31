@@ -80,7 +80,7 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getRtnRackCellStatusQuery() {
-		return this.getQueryByPath("preprocess/RtnRackCellStatus");
+		return this.getQueryByPath("preprocess/RackCellStatus");
 	}
 	
 	/**

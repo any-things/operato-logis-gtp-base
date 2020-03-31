@@ -80,7 +80,7 @@ public class DasQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getDasRackCellStatusQuery() {
-		return this.getQueryByPath("preprocess/DasRackCellStatus");
+		return this.getQueryByPath("preprocess/RackCellStatus");
 	}
 	
 	/**
