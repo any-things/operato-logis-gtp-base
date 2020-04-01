@@ -519,7 +519,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		boolean finalEnded = this.checkCellAssortEnd(job, finalEndFlag);
 	    
 		// 2. 로케이션에 완료 상태 기록
-		String cellJobStatus = finalEnded ? LogisConstants.CELL_JOB_STATUS_ENDED : LogisConstants.CELL_JOB_STATUS_END;
+		String cellJobStatus = finalEnded ? LogisConstants.CELL_JOB_STATUS_ENDED : LogisConstants.CELL_JOB_STATUS_ENDING;
 		workCell.setStatus(cellJobStatus);
 		if(!finalEnded) { 
 			workCell.setJobInstanceId(job.getId()); 

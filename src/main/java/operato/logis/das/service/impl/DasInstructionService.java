@@ -17,6 +17,7 @@ import xyz.anythings.base.entity.Order;
 import xyz.anythings.base.entity.OrderPreprocess;
 import xyz.anythings.base.entity.Rack;
 import xyz.anythings.base.entity.WorkCell;
+import xyz.anythings.base.service.api.IIndicationService;
 import xyz.anythings.base.service.api.IInstructionService;
 import xyz.anythings.base.service.impl.LogisServiceDispatcher;
 import xyz.anythings.base.util.LogisBaseUtil;
@@ -26,7 +27,6 @@ import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.anythings.sys.util.AnyValueUtil;
 import xyz.elidom.dbist.dml.Filter;
 import xyz.elidom.dbist.dml.Query;
-import xyz.elidom.exception.server.ElidomRuntimeException;
 import xyz.elidom.orm.OrmConstants;
 import xyz.elidom.sys.util.MessageUtil;
 import xyz.elidom.sys.util.ThrowUtil;
@@ -46,6 +46,11 @@ public class DasInstructionService extends AbstractQueryService  implements IIns
 	 */
 	@Autowired
 	private DasQueryStore dasQueryStore;
+	/**
+	 * Service Dispatcher
+	 */
+	@Autowired
+	private LogisServiceDispatcher serviceDispatcher;
 	
 	@Override
 	public Map<String, Object> searchInstructionData(JobBatch batch, Object... params) {
@@ -83,8 +88,150 @@ public class DasInstructionService extends AbstractQueryService  implements IIns
 
 	@Override
 	public int mergeBatch(JobBatch mainBatch, JobBatch newBatch, Object... params) {
-		// TODO Auto-generated method stub
-		return 0;
+		int mergeCount = this.beforeMergeBatch(mainBatch, newBatch, params);
+		this.doMergeBatch(mainBatch, newBatch, params);
+		this.afterMergeBatch(mainBatch, newBatch, params);
+		return mergeCount;
+	}
+	
+	/**
+	 * 배치 병합 전 체크
+	 * 
+	 * @param mainBatch
+	 * @param newBatch
+	 * @param params
+	 * @return
+	 */
+	private int beforeMergeBatch(JobBatch mainBatch, JobBatch newBatch, Object... params) {
+		// 1. 메인 배치 상태 체크
+		if(ValueUtil.isNotEqual(mainBatch.getStatus(), JobBatch.STATUS_RUNNING)) {
+			// 메인 작업배치가 진행 중인 상태에서만 병합 가능합니다
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "ALLOWED_MERGE_WHEN_MAIN_BATCH_RUN");
+		}
+		
+		// 2. 병합 배치 상태 체크
+		if(ValueUtil.isNotEqual(newBatch.getStatus(), JobBatch.STATUS_WAIT)) {
+			// 병합 대상 작업배치가 주문가공대기 상태에서만 가능합니다
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "ALLOWED_MERGE_WHEN_TARGET_BATCH_WAIT");
+		}
+		
+		// 3. 메인 배치에 현재 점등이 되어 있는 작업이 있는지 체크
+		Map<String, Object> qParams = ValueUtil.newMap("domainId,batchId,status,equipType,equipCd", mainBatch.getDomainId(), mainBatch.getId(), LogisConstants.JOB_STATUS_PICKING, mainBatch.getEquipType(), mainBatch.getEquipCd());
+		int indOnCount = this.queryManager.selectSize(JobInstance.class, qParams);
+		
+		if(indOnCount > 0) {
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "NOT_ALLOWED_MERGE_MAIN_BATCH_IND_ON");
+		}
+		
+		// 4. 메인 배치에 완료 셀 + 빈 셀 개수 카운트
+		String sql = this.dasQueryStore.getDasEmptyCellCountForMergeQuery();
+		int mainBatchEmptyCells = this.queryManager.selectBySql(sql, qParams, Integer.class);
+		
+		// 5. 병합 배치에는 있고 메인 배치에는 없는 신규 상품 수 카운트
+		qParams.put("mergeBatchId", newBatch.getId());
+		sql = this.dasQueryStore.getDasNewCellCountForMergeQuery();
+		int newSkuCount = this.queryManager.selectBySql(sql, qParams, Integer.class);
+		
+		// 6. 신규 상품 개수가 완료 + 빈 셀 카운트 보다 크면 병합 불가
+		if(newSkuCount > mainBatchEmptyCells) {
+			// 병합하려는 배치의 신규 상품 수량이 빈 셀 보다 많아서 병합이 불가합니다.
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "NOT_ALLOWED_MERGE_MANY_SKU");
+		}
+		
+		// 7. 병합할 신규 셀 수
+		return newSkuCount;
+	}
+	
+	/**
+	 * 배치 병합 처리
+	 * 
+	 * @param mainBatch
+	 * @param newBatch
+	 * @param params
+	 */
+	private void doMergeBatch(JobBatch mainBatch, JobBatch newBatch, Object... params) {
+		// 1. 신규 상품 & 셀 리스트 조회 및 생성
+		String sql = this.dasQueryStore.getDasNewWorkCellsForMergeQuery();
+		Map<String, Object> qParams = ValueUtil.newMap("domainId,batchId,mainBatchId", newBatch.getDomainId(), newBatch.getId(), mainBatch.getId());
+		List<WorkCell> newWorkCellList = this.queryManager.selectListBySql(sql, qParams, WorkCell.class, 0, 0);
+		this.queryManager.insertBatch(newWorkCellList);
+		
+		// 2. 신규 상품 & 셀 기반으로 WorkCell 업데이트 혹은 추가하면서 상태가 ENDING, ENDED인 것은 NULL로 업데이트
+		sql = "UPDATE WORK_CELLS SET STATUS = null, JOB_INSTANCE_ID = null where domain_id = :domainId and BATCH_ID = :mainBatchId AND STATUS IN ('ENDING', 'ENDED') AND CLASS_CD IN (SELECT DISTINCT CLASS_CD FROM ORDERS WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId)";
+		this.queryManager.executeBySql(sql, qParams);
+		
+		// 3. 병합 배치의 작업 정보 생성을 위한 작업 조회
+		sql = this.dasQueryStore.getDasNewJobInstancesByBatchQuery();
+		List<JobInstance> newJobList = this.queryManager.selectListBySql(sql, qParams, JobInstance.class, 0, 0);
+		
+		// 4. 메인 배치의 작업 정보 생성을 위한 작업 조회
+		Query condition = AnyOrmUtil.newConditionForExecution(newBatch.getDomainId(), 0, 0);
+		condition.addFilter("batchId", mainBatch.getId());
+		condition.addFilter("status", "in", LogisConstants.JOB_STATUS_WIP);
+		List<JobInstance> jobList = this.queryManager.selectList(JobInstance.class, condition);
+		
+		// 5. 생성, 업데이트 작업 리스트 컨테이너 정의
+		List<JobInstance> updateJobs = new ArrayList<JobInstance>();
+
+		// 6. 업데이트할 작업 리스트 추출
+		for(JobInstance job : jobList) {
+			JobInstance newJob = this.extractJobInstance(job, newJobList);
+			if(newJob != null) {
+				job.setPickQty(job.getPickQty() + newJob.getPickQty());
+				updateJobs.add(job);
+				newJobList.remove(job);
+			}
+		}
+		
+		// 7. 작업 업데이트
+		this.queryManager.updateBatch(updateJobs);
+		
+		// 8. 작업 인서트
+		this.queryManager.insertBatch(newJobList);
+		
+		// 9. 병합하려는 배치의 주문을 메인 배치로 병합
+		sql = "UPDATE ORDERS SET BATCH_ID = :mainBatchId where domain_id = :domainId and BATCH_ID = :batchId";
+		this.queryManager.executeBySql(sql, qParams);
+	}
+	
+	/**
+	 * newJobs에서 job과 동일한 classCd를 가진 작업 찾아 리턴
+	 * 
+	 * @param job
+	 * @param newJobs
+	 * @return
+	 */
+	private JobInstance extractJobInstance(JobInstance job, List<JobInstance> newJobs) {
+		for(JobInstance newJob : newJobs) {
+			if(ValueUtil.isEqualIgnoreCase(job.getClassCd(), newJob.getClassCd()) && ValueUtil.isEqualIgnoreCase(job.getSkuCd(), newJob.getSkuCd())) {
+				return newJob;
+			}
+		}
+		
+		return null;
+	}
+	
+	/**
+	 * 배치 병합 후 처리
+	 * 
+	 * @param mainBatch
+	 * @param newBatch
+	 * @param params
+	 */
+	private void afterMergeBatch(JobBatch mainBatch, JobBatch newBatch, Object... params) {
+		// 1. WorkCell의 작업 상태가 ENDING, ENDED 상태인데 작업 병합 후 처리할 분류 작업이 존재하는 셀 조회
+		Long domainId = mainBatch.getDomainId();
+		String sql = this.dasQueryStore.getDasEndCellOffQuery();
+		Map<String, Object> qParams = 
+				ValueUtil.newMap("domainId,batchId,cellStatuses,jobStatuses", domainId, mainBatch.getId(), LogisConstants.CELL_JOB_STATUS_END_LIST, LogisConstants.JOB_STATUS_WIP);
+		
+		// 2. 표시기 강제 소등 (END 표시를 지운다.)
+		IIndicationService indSvc = this.serviceDispatcher.getIndicationService(mainBatch);
+		List<WorkCell> indOffCells = this.queryManager.selectListBySql(sql, qParams, WorkCell.class, 0, 0);
+		
+		for(WorkCell cell : indOffCells) {
+			indSvc.indicatorOff(domainId, mainBatch.getStageCd(), cell.getIndCd());
+		}
 	}
 
 	@Override
@@ -111,7 +258,8 @@ public class DasInstructionService extends AbstractQueryService  implements IIns
 		condition.addFilter(new Filter("pickedQty", OrmConstants.GREATER_THAN, 0));
 		
 		if(this.queryManager.selectSize(JobInstance.class, condition) > 0) {
-			throw new ElidomRuntimeException("분류 작업시작 이후여서 취소가 불가능합니다");
+			// 분류 작업시작 이후여서 취소가 불가능합니다
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "MPS_NOT_ALLOWED_CANCEL_AFTER_START_JOB");
 		}
 		
 		return true;

@@ -165,6 +165,51 @@ public class RtnQueryStore extends AbstractQueryStore {
 	}
 	
 	/**
+	 * 완료된 셀의 표시기를 강제 소등하기 위한 표시기 리스트 조회 
+	 * 
+	 * @return
+	 */
+	public String getRtnEndCellOffQuery() {
+		return this.getQueryByPath("instruction/EndCellOffList");
+	}
+	
+	/**
+	 * 배치 병합시 메인 배치의 빈 셀 개수 조회 
+	 * 
+	 * @return
+	 */
+	public String getRtnEmptyCellCountForMergeQuery() {
+		return this.getQueryByPath("instruction/EmptyCellCountForMerge");
+	}
+	
+	/**
+	 * 배치 병합시 메인 배치의 새로 필요한 셀 개수 조회 
+	 * 
+	 * @return
+	 */
+	public String getRtnNewCellCountForMergeQuery() {
+		return this.getQueryByPath("instruction/NewCellCountForMerge");
+	}
+	
+	/**
+	 * 배치 병합시 병합 대상 배치의 새로 필요한 작업 셀 정보 조회 
+	 * 
+	 * @return
+	 */
+	public String getRtnNewWorkCellsForMergeQuery() {
+		return this.getQueryByPath("instruction/NewWorkCellsForMerge");
+	}
+	
+	/**
+	 * 배치의 작업 정보 생성을 위한 작업 정보 생성 
+	 * 
+	 * @return
+	 */
+	public String getRtnNewJobInstancesByBatchQuery() {
+		return this.getQueryByPath("instruction/NewJobInstancesByBatch");
+	}
+	
+	/**
 	 * 작업 마감을 위한 작업 데이터 요약 정보 조회
 	 *
 	 * @return
