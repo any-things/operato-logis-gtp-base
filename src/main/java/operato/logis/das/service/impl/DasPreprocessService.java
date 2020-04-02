@@ -51,12 +51,12 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	@Override
 	public Map<String, ?> buildPreprocessSet(JobBatch batch, Query query) {
 		// 1. 주문 가공 요약 후 처리 이벤트 전송
-		BatchPreprocessEvent afterEvent = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_AFTER, EventConstants.EVENT_PREPROCESS_SUMMARY);
-		afterEvent = (BatchPreprocessEvent)this.eventPublisher.publishEvent(afterEvent);
+		BatchPreprocessEvent event = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_ALONE, EventConstants.EVENT_PREPROCESS_SUMMARY);
+		event = (BatchPreprocessEvent)this.eventPublisher.publishEvent(event);
 		
 		// 2. 이벤트 취소라면 ...
-		if(afterEvent.isAfterEventCancel()) {
-			Object result = afterEvent.getEventResultSet() != null && afterEvent.getEventResultSet().getResult() != null ? afterEvent.getEventResultSet().getResult() : null;
+		if(event.isAfterEventCancel()) {
+			Object result = event.getEventResultSet() != null && event.getEventResultSet().getResult() != null ? event.getEventResultSet().getResult() : null;
 			if(result instanceof Map) {
 				return (Map<String, ?>)result;
 			}
@@ -91,13 +91,13 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	@SuppressWarnings("unchecked")
 	@Override
 	public List<JobBatch> completePreprocess(JobBatch batch, Object... params) {
-		// 1. 주문 가공 후 처리 이벤트 전송
-		BatchPreprocessEvent afterEvent = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_AFTER, EventConstants.EVENT_PREPROCESS_COMPLETE);
-		afterEvent = (BatchPreprocessEvent)this.eventPublisher.publishEvent(afterEvent);
+		// 1. 주문 가공 처리 이벤트 전송
+		BatchPreprocessEvent event = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_ALONE, EventConstants.EVENT_PREPROCESS_COMPLETE);
+		event = (BatchPreprocessEvent)this.eventPublisher.publishEvent(event);
 		
 		// 2. 이벤트 취소라면 ...
-		if(afterEvent.isAfterEventCancel()) {
-			Object result = afterEvent.getEventResultSet() != null && afterEvent.getEventResultSet().getResult() != null ? afterEvent.getEventResultSet().getResult() : null;
+		if(event.isAfterEventCancel()) {
+			Object result = event.getEventResultSet() != null && event.getEventResultSet().getResult() != null ? event.getEventResultSet().getResult() : null;
 			if(result instanceof List<?>) {
 				return (List<JobBatch>)result;
 			}
@@ -152,13 +152,13 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	
 	@Override
 	public int assignSubEquipLevel(JobBatch batch, String equipType, String equipCd, List<OrderPreprocess> items) {
-		// 1. 주문 가공 후 처리 이벤트 전송
-		BatchPreprocessEvent afterEvent = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_AFTER, EventConstants.EVENT_PREPROCESS_SUB_EQUIP_ASSIGN);
-		afterEvent = (BatchPreprocessEvent)this.eventPublisher.publishEvent(afterEvent);
+		// 1. 셀 할당 처리 이벤트 전송
+		BatchPreprocessEvent event = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_ALONE, EventConstants.EVENT_PREPROCESS_SUB_EQUIP_ASSIGN);
+		event = (BatchPreprocessEvent)this.eventPublisher.publishEvent(event);
 		
 		// 2. 이벤트 취소라면 ...
-		if(afterEvent.isAfterEventCancel()) {
-			Object result = afterEvent.getEventResultSet() != null && afterEvent.getEventResultSet().getResult() != null ? afterEvent.getEventResultSet().getResult() : null;
+		if(event.isAfterEventCancel()) {
+			Object result = event.getEventResultSet() != null && event.getEventResultSet().getResult() != null ? event.getEventResultSet().getResult() : null;
 			return (result instanceof Integer) ? ValueUtil.toInteger(result) : 0;
 		}
 		
@@ -179,12 +179,12 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	 * @param items
 	 */
 	public void assignRackByManual(JobBatch batch, String equipCd, List<OrderPreprocess> items) {
-		// 1. 주문 가공 후 처리 이벤트 전송
-		BatchPreprocessEvent afterEvent = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_AFTER, EventConstants.EVENT_PREPROCESS_EQUIP_MANUAL_ASSIGN);
-		afterEvent = (BatchPreprocessEvent)this.eventPublisher.publishEvent(afterEvent);
+		// 1. 수동 랙 지정 이벤트 전송
+		BatchPreprocessEvent event = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_ALONE, EventConstants.EVENT_PREPROCESS_EQUIP_MANUAL_ASSIGN);
+		event = (BatchPreprocessEvent)this.eventPublisher.publishEvent(event);
 		
 		// 2. 이벤트 취소라면 ...
-		if(afterEvent.isAfterEventCancel()) {
+		if(event.isAfterEventCancel()) {
 			return;
 		}
 		
@@ -219,13 +219,13 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	 * @return
 	 */
 	public int assignRackByAuto(JobBatch batch, String equipCds, List<OrderPreprocess> items) {
-		// 1. 주문 가공 후 처리 이벤트 전송
-		BatchPreprocessEvent afterEvent = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_AFTER, EventConstants.EVENT_PREPROCESS_EQUIP_AUTO_ASSIGN);
-		afterEvent = (BatchPreprocessEvent)this.eventPublisher.publishEvent(afterEvent);
+		// 1. 자동 랙 지정 처리 이벤트 전송
+		BatchPreprocessEvent event = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_ALONE, EventConstants.EVENT_PREPROCESS_EQUIP_AUTO_ASSIGN);
+		event = (BatchPreprocessEvent)this.eventPublisher.publishEvent(event);
 		
 		// 2. 이벤트 취소라면 ...
-		if(afterEvent.isAfterEventCancel()) {
-			Object result = afterEvent.getEventResultSet() != null && afterEvent.getEventResultSet().getResult() != null ? afterEvent.getEventResultSet().getResult() : null;
+		if(event.isAfterEventCancel()) {
+			Object result = event.getEventResultSet() != null && event.getEventResultSet().getResult() != null ? event.getEventResultSet().getResult() : null;
 			return (result instanceof Integer) ? ValueUtil.toInteger(result) : 0;
 		}
 		
