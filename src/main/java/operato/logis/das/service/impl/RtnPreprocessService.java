@@ -20,6 +20,7 @@ import xyz.anythings.base.event.EventConstants;
 import xyz.anythings.base.event.main.BatchPreprocessEvent;
 import xyz.anythings.base.service.api.IPreprocessService;
 import xyz.anythings.base.service.util.StageJobConfigUtil;
+import xyz.anythings.sys.event.model.SysEvent;
 import xyz.anythings.sys.service.AbstractExecutionService;
 import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.anythings.sys.util.AnyValueUtil;
@@ -48,6 +49,10 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	
 	@Override
 	public Map<String, ?> buildPreprocessSet(JobBatch batch, Query query) {
+		// 1. 주문 가공 서머리 조회 전 이벤트 전송 
+		BatchPreprocessEvent beforeEvent = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_BEFORE, EventConstants.EVENT_PREPROCESS_SUMMARY);
+		this.eventPublisher.publishEvent(beforeEvent);
+		
 		// 1. 주문 가공 정보 조회  
 		List<OrderPreprocess> preprocesses = this.queryManager.selectList(OrderPreprocess.class, query);
 		
@@ -57,9 +62,9 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 			preprocesses = this.queryManager.selectList(OrderPreprocess.class, query);
 		}
 		
-		// 3. 주문 그룹 정보 조회 - 주문 가공 화면의 중앙 주문 그룹 리스트
+		// 3. 주문 그룹 정보 - 주문 가공 화면의 중앙 주문 그룹 리스트
 		List<OrderGroup> groups = this.searchOrderGroupList(batch);
-		// 4. 호기 정보 조회 - 주문 가공 화면의 우측 호기 리스트
+		// 4. 호기 정보 - 주문 가공 화면의 우측 호기 리스트
 		List<RackCells> rackCells = this.rackAssignmentStatus(batch);
 		// 5. 물량 요약 정보 - 주문 가공 화면의 상단 물량 요약 정보
 		PreprocessSummary summary = this.searchPreprocessSummary(batch);
@@ -74,21 +79,26 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 		return this.queryManager.deleteList(OrderPreprocess.class, condition);
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public List<JobBatch> completePreprocess(JobBatch batch, Object... params) {
-		// 1. 주문 가공 완료 전 처리 이벤트 전송, TODO 이벤트 취소 여부에 따라 메인 로직 스킵하는 로직 추가 
-		BatchPreprocessEvent beforeEvent = new BatchPreprocessEvent(batch, EventConstants.EVENT_STEP_BEFORE, BatchPreprocessEvent.ACTION_COMPLETE_PREPROCESS);
-		this.eventPublisher.publishEvent(beforeEvent);
+		// 1. 주문 가공 후 처리 이벤트 전송
+		BatchPreprocessEvent afterEvent = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_AFTER, EventConstants.EVENT_PREPROCESS_COMPLETE);
+		afterEvent = (BatchPreprocessEvent)this.eventPublisher.publishEvent(afterEvent);
 		
-		// 2. 주문 가공 정보가 존재하는지 체크
+		// 2. 다음 단계 취소라면 ...
+		if(afterEvent.isAfterEventCancel()) {
+			Object result = afterEvent.getEventResultSet() != null && afterEvent.getEventResultSet().getResult() != null ? afterEvent.getEventResultSet().getResult() : null;
+			if(result instanceof List<?>) {
+				return (List<JobBatch>)result;
+			}
+		}
+		
+		// 3. 주문 가공 정보가 존재하는지 체크
 		this.beforeCompletePreprocess(batch, false);
 
-		// 3. 주문 가공 완료 처리
+		// 4. 주문 가공 완료 처리
 		this.completePreprocessing(batch);
-	
-		// 4. 주문 가공 후 처리 이벤트 전송
-		BatchPreprocessEvent afterEvent = new BatchPreprocessEvent(batch, EventConstants.EVENT_STEP_AFTER, BatchPreprocessEvent.ACTION_COMPLETE_PREPROCESS);
-		this.eventPublisher.publishEvent(afterEvent);
 
 		// 5. 주문 가공 완료 처리한 배치 리스트 리턴
 		return ValueUtil.toList(batch);
@@ -117,12 +127,13 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	public int assignEquipLevel(JobBatch batch, String equipCds, List<OrderPreprocess> items, boolean automatically) {
  		// 1. 상품 정보가 존재하는지 체크
 		if(ValueUtil.isEmpty(items)) {
-			throw new ElidomRuntimeException("There is no SKU in the OrderPreprocess!");
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "NO_AVAILABLE_OJBECT", "terms.label.order");
 		}
 		
-		// 2. 랙 지정
+		// 2. 자동 랙 지정
 		if(automatically) {
 			assignRackByAuto(batch, equipCds, items);
+		// 3. 수동 랙 지정
 		} else {
 			assignRackByManual(batch, equipCds, items);
 		}
@@ -132,8 +143,23 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	
 	@Override
 	public int assignSubEquipLevel(JobBatch batch, String equipType, String equipCd, List<OrderPreprocess> items) {
-		// TODO Auto-generated method stub
-		return 0;
+		// 1. 주문 가공 후 처리 이벤트 전송
+		BatchPreprocessEvent afterEvent = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_AFTER, EventConstants.EVENT_PREPROCESS_SUB_EQUIP_ASSIGN);
+		afterEvent = (BatchPreprocessEvent)this.eventPublisher.publishEvent(afterEvent);
+		
+		// 2. 이벤트 취소라면 ...
+		if(afterEvent.isAfterEventCancel()) {
+			Object result = afterEvent.getEventResultSet() != null && afterEvent.getEventResultSet().getResult() != null ? afterEvent.getEventResultSet().getResult() : null;
+			return (result instanceof Integer) ? ValueUtil.toInteger(result) : 0;
+		}
+		
+		// 3. 랙 리스트 조회
+		List<String> equipList = AnyValueUtil.filterValueListBy(items, "equipCd");
+		List<RackCells> rackCells = this.rackAssignmentStatus(batch, equipList);
+		
+		// 4. 설비 서브 코드 (셀, 슈트 등) 할당 
+		this.assignCells(batch, rackCells, items);
+		return items.size();
 	}
 	
 	/**
@@ -144,30 +170,34 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	 * @param items
 	 */
 	public void assignRackByManual(JobBatch batch, String equipCd, List<OrderPreprocess> items) {
-		// 1. 이미 랙이 지정 되어 있는 상품 개수 조회
+		// 1. 주문 가공 후 처리 이벤트 전송
+		BatchPreprocessEvent afterEvent = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_AFTER, EventConstants.EVENT_PREPROCESS_EQUIP_MANUAL_ASSIGN);
+		afterEvent = (BatchPreprocessEvent)this.eventPublisher.publishEvent(afterEvent);
+		
+		// 2. 이벤트 취소라면 ...
+		if(afterEvent.isAfterEventCancel()) {
+			return;
+		}
+		
+		// 3. 이미 랙이 지정 되어 있는 상품 개수 조회
 		Rack rack = Rack.findByRackCd(batch.getDomainId(), equipCd, false);
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,equipCd", batch.getDomainId(), batch.getId(), equipCd);
 		int assignedCount = this.queryManager.selectSize(OrderPreprocess.class, params);
 
-		// 2. 새로 랙에 할당할 상품 개수 합이 랙의 셀 보다 많을 때 예외 발생
+		// 4. 새로 랙에 할당할 상품 개수 합이 랙의 셀 보다 많을 때 예외 발생
 		int cellCount = rack.validLocationCount();
 		if(cellCount < assignedCount + items.size()) {
 			// 랙의 빈 셀 개수보다 할당할 주문 수가 많습니다
 			throw ThrowUtil.newValidationErrorWithNoLog(true, "MISMATCH_ORDER_AND_EMPTY_CELL");
 		}
 		
-		// 3. 랙 지정
+		// 5. 랙 지정
 		for(OrderPreprocess preprocess : items) {
 			preprocess.setEquipCd(rack.getRackCd());
 			preprocess.setEquipNm(rack.getRackNm());
 		}
 		
-		// 4. 랙에 배치ID 매핑
-		//rack.setBatchId(batch.getId()); 
-		//rack.setStatus(JobBatch.STATUS_WAIT);
-		//this.queryManager.update(rack, "batchId", "status");
-		
-		// 5. 주문 가공 정보 업데이트 
+		// 6. 주문 가공 정보 업데이트 
 		AnyOrmUtil.updateBatch(items, 100, "equipCd", "equipNm", "updatedAt");
 	}
 
@@ -180,21 +210,31 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 	 * @return
 	 */
 	public int assignRackByAuto(JobBatch batch, String equipCds, List<OrderPreprocess> items) {
-		// 1. 주문 가공 정보 호기 매핑 리셋
+		// 1. 주문 가공 후 처리 이벤트 전송
+		BatchPreprocessEvent afterEvent = new BatchPreprocessEvent(batch, SysEvent.EVENT_STEP_AFTER, EventConstants.EVENT_PREPROCESS_EQUIP_AUTO_ASSIGN);
+		afterEvent = (BatchPreprocessEvent)this.eventPublisher.publishEvent(afterEvent);
+		
+		// 2. 이벤트 취소라면 ...
+		if(afterEvent.isAfterEventCancel()) {
+			Object result = afterEvent.getEventResultSet() != null && afterEvent.getEventResultSet().getResult() != null ? afterEvent.getEventResultSet().getResult() : null;
+			return (result instanceof Integer) ? ValueUtil.toInteger(result) : 0;
+		}
+		
+		// 3. 주문 가공 정보 호기 매핑 리셋
 		String qry = this.rtnQueryStore.getRtnResetRackCellQuery();
 		this.queryManager.executeBySql(qry, ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId()));
 		
-		// 2. 호기 리스트 조회
+		// 4. 호기 리스트 조회
 		int skuCount = items.size();
 		List<RackCells> rackCells = this.rackAssignmentStatus(batch);
 		
-		// 3. 상품 개수와 호기의 사용 가능한 셀 개수를 비교해서
+		// 5. 상품 개수와 호기의 사용 가능한 셀 개수를 비교해서
 		int rackCapa = 0;
 		for(RackCells rackCell : rackCells) {
 			rackCapa += rackCell.getRemainCells();
 		}
 
-		// 4. 거래처 개수가 호기의 사용 가능 셀 개수보다 크다면 큰 만큼 거래처 리스트에서 삭제
+		// 6. 거래처 개수가 호기의 사용 가능 셀 개수보다 크다면 큰 만큼 거래처 리스트에서 삭제
 		int removalCount = skuCount - rackCapa;
 		if(removalCount > 0) {
 			// 거래처 리스트를 호기의 사용 가능 셀 만큼만 남기고 나머지는 제거
@@ -207,7 +247,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 		int rackIdx = 0;
 		int rackEndIdx = rackCells.size();
 				
-		// 5. 주문 가공별로 루프
+		// 7. 주문 가공별로 루프
 		for(OrderPreprocess preprocess : items) {
 			if(preprocess.getId().isEmpty()) {
 				break;
@@ -242,7 +282,7 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 			 
 		}
 		  
-		// 6. 주문 가공 정보 업데이트
+		// 8. 주문 가공 정보 업데이트
 		AnyOrmUtil.updateBatch(items, 100, "equipCd", "equipNm", "updatedAt");
 		return items.size();
 	}
@@ -479,7 +519,6 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
  		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		condition.addSelect("id", "batchId", "comCd", "cellAssgnCd", "cellAssgnNm", "equipCd", "equipNm", "subEquipCd", "skuQty", "totalPcs");
 		condition.addFilter("batchId", batch.getId());
-		//condition.addFilter("equipCd", batch.getEquipCd());
 		condition.addOrder("totalPcs", false);
 		return this.queryManager.selectList(OrderPreprocess.class, condition);
 	}
@@ -548,37 +587,4 @@ public class RtnPreprocessService extends AbstractExecutionService implements IP
 		return preprocesses.size();
 	}
 
-	/**
-	 * 작업 배치의 상품별 물량 할당 요약 정보 조회
-	 * 
-	 * @param batch
-	 * @param query
-	 * @return
-	 */
-	/*public Map<?, ?> preprocessSummary(JobBatch batch, Query query) {
-		String rackCd = AnyValueUtil.getFilterValue(query, "rack_cd");
-		String classCd = AnyValueUtil.getFilterValue(query, "class_cd");
-
-		if(AnyValueUtil.isEmpty(rackCd)) {
-			rackCd = DasConstants.ALL_CAP_STRING;
-		}
-		
-		if(AnyValueUtil.isEmpty(classCd)) {
-			classCd = DasConstants.ALL_CAP_STRING;
-		}
-
-		Map<String,Object> params =
-			ValueUtil.newMap("domainId,batchId,rackCd,orderGroup", batch.getDomainId(), batch.getId(), rackCd, classCd);
-
-		if(AnyValueUtil.isEqualIgnoreCase(classCd, "is blank")) {
-			params.remove("classCd");
-		}
-		
-		if(AnyValueUtil.isEqualIgnoreCase(rackCd, "is blank")) {
-			params.remove("rackCd");
-		}
-
-		String sql = this.rtnQueryStore.getRtnBatchGroupPreprocessSummaryQuery();
-		return this.queryManager.selectBySql(sql, params, Map.class);
-	}*/
 }

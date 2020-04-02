@@ -260,7 +260,7 @@ public class RtnInstructionService  extends AbstractQueryService  implements IIn
 		
 		if(this.queryManager.selectSize(JobInstance.class, condition) > 0) {
 			// 분류 작업시작 이후여서 취소가 불가능합니다
-			throw ThrowUtil.newValidationErrorWithNoLog(true, "MPS_NOT_ALLOWED_CANCEL_AFTER_START_JOB");
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "NOT_ALLOWED_CANCEL_AFTER_START_JOB");
 		}
 		
 		return true;
@@ -366,7 +366,7 @@ public class RtnInstructionService  extends AbstractQueryService  implements IIn
 			// 4-2. 랙 별 주문 가공 데이터 추출
 			List<OrderPreprocess> equipPreprocesses = AnyValueUtil.filterListBy(preprocesses, "equipCd", rack.getRackCd());
 			// 4-3. 마지막 번째 설비는 메인 배치, 그 외 설비는 새로운 배치를 생성하여 
-			String batchId = (i != rackCount - 1) ? LogisBaseUtil.newJobBatchId(domainId) : batch.getId();
+			String batchId = (i != rackCount - 1) ? LogisBaseUtil.newJobBatchId(domainId, batch.getStageCd()) : batch.getId();
 			JobBatch newBatch = this.sliceBatch(batch, batchId, rack, equipPreprocesses);
 			// 4-4. 각 배치 별로 작업지시 처리
 			this.instructBySlicedBatch(newBatch, rack, equipPreprocesses);
@@ -388,7 +388,7 @@ public class RtnInstructionService  extends AbstractQueryService  implements IIn
 	 */
 	private List<OrderPreprocess> cutoffNotAssignedOrders(JobBatch batch) {
 		// 1. 새로운 배치 ID 생성
-		String cutoffBatchId = LogisBaseUtil.newJobBatchId(batch.getDomainId());
+		String cutoffBatchId = LogisBaseUtil.newJobBatchId(batch.getDomainId(), batch.getStageCd());
 		
 		// 2. 랙이 할당되지 않은 주문 가공 리스트를 새로운 배치로 업데이트
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,newBatchId", batch.getDomainId(), batch.getId(), cutoffBatchId);

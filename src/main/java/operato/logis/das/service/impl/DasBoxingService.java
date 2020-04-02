@@ -170,7 +170,7 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 
 	@Override
 	public BoxPack cancelFullboxing(BoxPack box) {
-		// TODO Auto-generated method stub
+		// TODO 이벤트만 전송 - 각 사이트에서 알아서 처리
 		return null;
 	}
 
