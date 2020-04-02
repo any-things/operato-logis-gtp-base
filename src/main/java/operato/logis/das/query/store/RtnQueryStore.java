@@ -214,8 +214,8 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getRtnBatchJobStatusRateQuery() {
-		return this.getQueryByPath("instruction/BatchStatusSummary");
+	public String getRtnBatchResultSummaryQuery() {
+		return this.getQueryByPath("batch/BatchResultSummary");
 	}
 	
 	/**

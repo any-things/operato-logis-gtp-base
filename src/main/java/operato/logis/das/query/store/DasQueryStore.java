@@ -214,8 +214,8 @@ public class DasQueryStore extends AbstractQueryStore {
 	 *
 	 * @return
 	 */
-	public String getDasBatchJobStatusQuery() {
-		return this.getQueryByPath("instruction/BatchStatusSummary");
+	public String getDasBatchResultSummaryQuery() {
+		return this.getQueryByPath("batch/BatchResultSummary");
 	}
 	
 	/**
