@@ -170,7 +170,7 @@ public class RtnBoxingService extends AbstractExecutionService implements IBoxin
 
 	@Override
 	public BoxPack cancelFullboxing(BoxPack box) {
-		// TODO Auto-generated method stub
+		// TODO 풀 박스 취소 이벤트만 던지고 각 사이트에서 알아서 구현
 		return null;
 	}
 

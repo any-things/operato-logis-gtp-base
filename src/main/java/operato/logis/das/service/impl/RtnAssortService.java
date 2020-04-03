@@ -44,7 +44,7 @@ import xyz.elidom.util.ThreadUtil;
 import xyz.elidom.util.ValueUtil; 
 
 /**
- * 반품 분류 서비스  구현
+ * 반품 분류 서비스 구현
  *
  * @author shortstop
  */
