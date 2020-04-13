@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
+import operato.logis.das.service.util.RtnBatchJobConfigUtil;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.BoxItem;
 import xyz.anythings.base.entity.BoxPack;
@@ -14,9 +15,11 @@ import xyz.anythings.base.entity.JobConfigSet;
 import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.entity.Order;
 import xyz.anythings.base.entity.WorkCell;
+import xyz.anythings.base.event.box.UndoBoxingEvent;
 import xyz.anythings.base.service.api.IAssortService;
 import xyz.anythings.base.service.api.IBoxingService;
 import xyz.anythings.base.service.util.BatchJobConfigUtil;
+import xyz.anythings.sys.event.model.SysEvent;
 import xyz.anythings.sys.service.AbstractExecutionService;
 import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.anythings.sys.util.AnyOrmUtil;
@@ -24,6 +27,7 @@ import xyz.elidom.dbist.dml.Query;
 import xyz.elidom.exception.server.ElidomRuntimeException;
 import xyz.elidom.sys.SysConstants;
 import xyz.elidom.sys.util.DateUtil;
+import xyz.elidom.sys.util.ThrowUtil;
 import xyz.elidom.util.ValueUtil;
 
 /**
@@ -46,7 +50,6 @@ public class RtnBoxingService extends AbstractExecutionService implements IBoxin
 	
 	@Override
 	public boolean isUsedBoxId(JobBatch batch, String boxId, boolean exceptionWhenBoxIdUsed) {
-
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		String boxIdUniqueScope = BatchJobConfigUtil.getBoxIdUniqueScope(batch, LogisConstants.BOX_ID_UNIQUE_SCOPE_GLOBAL);
 		
@@ -80,26 +83,39 @@ public class RtnBoxingService extends AbstractExecutionService implements IBoxin
 		this.isUsedBoxId(batch, boxId, true);
 				
 		// 2. 작업 WorkCell 조회
-		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
-		condition.addFilter("batchId", batch.getId());
-		condition.addFilter("cellCd", cellCd);
-		WorkCell cell = this.queryManager.selectByCondition(WorkCell.class, condition);
-		cell.setBoxId(boxId);
+		Long domainId = batch.getDomainId();
+		WorkCell workCell = AnyEntityUtil.findEntityBy(domainId, true, WorkCell.class, null, "domainId,batchId,cellCd", domainId, batch.getId(), cellCd);
+		workCell.setBoxId(boxId);
 		
-		// 3. 작업 인스턴스 정보 조회
-		condition.removeFilter("cellCd");
+		// 3. 셀에 처리할 작업 인스턴스 정보 조회
+		Query condition = AnyOrmUtil.newConditionForExecution(domainId);
 		condition.addSelect("id", "picked_qty", "picking_qty");
-		condition.addFilter("subEquipCd", cellCd); 
-		condition.addFilter("status", SysConstants.IN, LogisConstants.JOB_STATUS_PF);
+		condition.addFilter("batchId", batch.getId());
+		condition.addFilter("subEquipCd", cellCd);
+		
+		// 4. 작업 조회 조건 - 박스 선 매핑 / 후 매핑 조회 조건 추가
+		if(RtnBatchJobConfigUtil.isPreviousBoxCellMapping(batch)) {
+			condition.addFilter("status", LogisConstants.JOB_STATUS_BOX_WAIT);
+		// 박스 후 매핑 설정인 경우 
+		} else {
+			condition.addFilter("status", SysConstants.IN, LogisConstants.JOB_STATUS_PF);
+		}
 		JobInstance job = this.queryManager.selectByCondition(JobInstance.class, condition);
 		
-		// 4. 작업 인스턴스에 피킹 진행 중인 수량이 있다면 Fullbox 안 됨 
-		if(job.getPickingQty() > 0) {
-			throw new ElidomRuntimeException("완료되지 않은 작업이 있습니다.");
+		// 5. 작업이 없다면 에러 
+		if(job == null) {
+			// 셀에 박싱 처리할 작업이 없습니다.
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "NO_JOBS_FOR_BOXING");
 		}
 		
-		// 5. 클라이언트에 할당 정보 리턴
-		return ValueUtil.newMap("detail,job_id,picked_qty,picking_qty", cell, job.getId(), job.getPickedQty(), job.getPickingQty());
+		// 6. 작업 인스턴스에 피킹 진행 중인 수량이 있다면 박싱 매핑 안 됨.
+		if(job.getPickingQty() > 0) {
+			// 미완료 상태의 작업이 있습니다.
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "INCOMPLETED_JOB_EXIST");
+		}
+		
+		// 7. 클라이언트에 할당 정보 리턴
+		return ValueUtil.newMap("detail,job_id,picked_qty,picking_qty", workCell, job.getId(), job.getPickedQty(), job.getPickingQty());
 	}
 
 	@Override
@@ -170,8 +186,9 @@ public class RtnBoxingService extends AbstractExecutionService implements IBoxin
 
 	@Override
 	public BoxPack cancelFullboxing(BoxPack box) {
-		// TODO 풀 박스 취소 이벤트만 던지고 각 사이트에서 알아서 구현
-		return null;
+		UndoBoxingEvent event = new UndoBoxingEvent(SysEvent.EVENT_STEP_ALONE, box);
+		this.eventPublisher.publishEvent(event);
+		return box;
 	}
 
 	/**

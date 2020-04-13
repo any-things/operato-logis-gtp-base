@@ -8,7 +8,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import operato.logis.das.service.api.IDasIndicationService;
-import operato.logis.das.service.util.RtnBatchJobConfigUtil;
+import operato.logis.das.service.util.DasBatchJobConfigUtil;
 import xyz.anythings.base.LogisCodeConstants;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.BoxPack;
@@ -75,7 +75,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 	@Override
 	public void batchStartAction(JobBatch batch) {
 		// 설정에서 작업배치 시에 게이트웨이 리부팅 할 지 여부 조회
-		boolean gwReboot = RtnBatchJobConfigUtil.isGwRebootWhenInstruction(batch);
+		boolean gwReboot = DasBatchJobConfigUtil.isGwRebootWhenInstruction(batch);
 		
 		if(gwReboot) {
 			IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
@@ -88,7 +88,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		}
 		
 		// 설정에서 작업 지시 시점에 박스 매핑 표시 여부 조회 		
-		if(RtnBatchJobConfigUtil.isIndOnAssignedCellWhenInstruction(batch)) {
+		if(DasBatchJobConfigUtil.isIndOnAssignedCellWhenInstruction(batch)) {
 			// 게이트웨이 리부팅 시에는 리부팅 프로세스 완료시까지 약 1분여간 기다린다.
 			if(gwReboot) {
 				ThreadUtil.sleep(60000);
@@ -102,7 +102,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 	@Override
 	public void batchCloseAction(JobBatch batch) {
 		// 모든 셀에 남아 있는 잔량에 대해 풀 박싱 여부 조회 		
-		if(RtnBatchJobConfigUtil.isBatchFullboxWhenClosingEnabled(batch)) {
+		if(DasBatchJobConfigUtil.isBatchFullboxWhenClosingEnabled(batch)) {
 			// 배치 풀 박싱
 			this.boxService.batchBoxing(batch);
 		}
@@ -197,7 +197,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		condition.addFilter("batchId", batch.getId());
 		condition.addFilter("comCd", comCd);
 		// 설정에서 셀 - 박스와 매핑될 타겟 필드를 조회  
-		String classFieldName = RtnBatchJobConfigUtil.getBoxMappingTargetField(batch);
+		String classFieldName = DasBatchJobConfigUtil.getBoxMappingTargetField(batch);
 		condition.addFilter(classFieldName, "noteq", classCd);
 		condition.addFilter("equipCd", batch.getEquipCd());
 		condition.addFilter("status", LogisConstants.JOB_STATUS_PICKING);
@@ -356,7 +356,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		condition.addFilter("batchId", job.getId());
 		condition.addFilter("equipCd", job.getEquipCd());
 		// 설정에서 셀 - 박스와 매핑될 타겟 필드를 조회  
-		String classFieldName = RtnBatchJobConfigUtil.getBoxMappingTargetField(exeEvent.getJobBatch());
+		String classFieldName = DasBatchJobConfigUtil.getBoxMappingTargetField(exeEvent.getJobBatch());
 		condition.addFilter(classFieldName, job.getClassCd());
 		condition.addFilter("status", "in", ValueUtil.toList(Order.STATUS_RUNNING, Order.STATUS_FINISHED));
 		condition.addFilter("pickingQty", ">=", pickedQty);
@@ -377,7 +377,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		return pickedQty;
 	}
 
-	@EventListener(classes = IClassifyOutEvent.class, condition = "#outEvent.jobType == 'RTN'")
+	@EventListener(classes = IClassifyOutEvent.class, condition = "#outEvent.jobType == 'DAS'")
 	@Override
 	public BoxPack fullBoxing(IClassifyOutEvent outEvent) {
 
@@ -625,7 +625,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		
 		if(toDevice == null) {
 			// toDevice가 없다면 사용 디바이스 리스트 조회
-			deviceList = RtnBatchJobConfigUtil.getDeviceList(batch) == null ? null : RtnBatchJobConfigUtil.getDeviceList(batch);
+			deviceList = DasBatchJobConfigUtil.getDeviceList(batch) == null ? null : DasBatchJobConfigUtil.getDeviceList(batch);
 		} else {
 			deviceList = new String[] { toDevice };
 		}
