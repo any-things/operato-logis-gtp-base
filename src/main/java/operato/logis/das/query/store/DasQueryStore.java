@@ -235,5 +235,32 @@ public class DasQueryStore extends AbstractQueryStore {
 	public String getCommonCellSortingQuery() {
 		return this.getQueryByPath("etc/CellSorting");
 	}
+	
+	/**
+	 * 중분류 쿼리 
+	 * 
+	 * @return
+	 */
+	public String getDasCategorizationQuery() {
+		return this.getQueryByPath("pick/DasCategorization");
+	}
+	
+	/**
+	 * 투입한 상품 코드로 투입 시퀀스를 조회
+	 * 
+	 * @return
+	 */
+	public String getDasFindInputSeqBySkuQuery() {
+		return this.getQueryByPath("pick/DasInputSeqBySku");
+	}
+
+	/**
+	 * 작업 배치내에 피킹(표시기 점등) 중인 작업이 있는 작업 스테이션 리스트를 조회
+	 * 
+	 * @return
+	 */
+	public String getDasSearchWorkingStationQuery() {
+		return this.getQueryByPath("pick/DasSearchWorkingStation");
+	}
 
 }

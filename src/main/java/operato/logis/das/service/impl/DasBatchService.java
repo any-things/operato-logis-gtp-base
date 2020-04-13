@@ -100,7 +100,7 @@ public class DasBatchService extends AbstractLogisService implements IBatchServi
 		// 4. 해당 배치에 랙, 작업 셀 정보 리셋
 		this.resetRacksAndCells(batch);
 
-		// 5. OREDER_PREPROCESS 삭제
+		// 5. 주문 가공 정보 삭제
 		this.deletePreprocess(batch);
 
 		// 6. JobBatch 상태 변경
@@ -108,6 +108,9 @@ public class DasBatchService extends AbstractLogisService implements IBatchServi
 		
 		// 7. 분류 서비스 배치 마감 API 호출 
 		this.serviceDispatcher.getAssortService(batch).batchCloseAction(batch);
+		
+		// 8. 표시기 소등
+		this.serviceDispatcher.getIndicationService(batch).indicatorOffAll(batch);
 	}
 
 	@Override

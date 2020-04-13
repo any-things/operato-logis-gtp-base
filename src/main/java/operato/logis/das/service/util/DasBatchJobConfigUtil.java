@@ -1,8 +1,10 @@
 package operato.logis.das.service.util;
 
 import operato.logis.das.DasConfigConstants;
+import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.service.util.BatchJobConfigUtil;
+import xyz.elidom.sys.util.ValueUtil;
 
 /**
  * 출고 관련 작업 배치 관련 설정 프로파일
@@ -27,14 +29,14 @@ import xyz.anythings.base.service.util.BatchJobConfigUtil;
 public class DasBatchJobConfigUtil extends BatchJobConfigUtil {
 
 	/**
-	 * 셀 - SKU 매핑 시점 (P: 주문 가공시, A: 분류 시)
+	 * 셀 - 박스 매핑 시점 (P: 주문 가공시, A: 분류 시)
 	 * 
 	 * @param batch
 	 * @return
 	 */
-	public static String getCellSkuMappingPoint(JobBatch batch) {
-		// job.rtn.cell-sku.mapping.point						
-		return getConfigValue(batch, DasConfigConstants.RTN_CELL_SKU_MAPPING_POINT, "P");
+	public static String getCellBoxMappingPoint(JobBatch batch) {
+		// job.das.cell-boxid.mapping.point						
+		return getConfigValue(batch, DasConfigConstants.DAS_CELL_BOXID_MAPPING_POINT, DasConfigConstants.DAS_CELL_BOX_MAPPING_POINT_PREPROCESS);
 	}
 	
 	/**
@@ -44,8 +46,43 @@ public class DasBatchJobConfigUtil extends BatchJobConfigUtil {
 	 * @return
 	 */
 	public static String getBoxMappingTargetField(JobBatch batch) {
-		// job.rtn.preproces.cell.mapping.field
-		return getConfigValue(batch, DasConfigConstants.RTN_PREPROCESS_CELL_MAPPING_FIELD, true);
+		// job.das.preproces.cell.mapping.field
+		return getConfigValue(batch, DasConfigConstants.DAS_PREPROCESS_CELL_MAPPING_FIELD, true);
+	}
+	
+	/**
+	 * DAS KIOSK 중분류 화면에서 표시 수량 (fix/filter)
+	 * 
+	 * @param batch
+	 * @return
+	 */
+	public static String getCategorizationQtyDisplayMode(JobBatch batch) {
+		// job.das.middleassort.display.qty.mode
+		return getConfigValue(batch, DasConfigConstants.DAS_MIDDLEASSORT_DISPLAY_QTY_MODE, DasConfigConstants.DAS_CATEGORIZATION_QTY_MODE_FIX);
+	}
+	
+	/**
+	 * DAS KIOSK 중분류 화면에서 표시 수량이 fix 인지 여부
+	 * 
+	 * @param batch
+	 * @return
+	 */
+	public static boolean isCategorizationDisplayFixedQtyMode(JobBatch batch) {
+		String val = getCategorizationQtyDisplayMode(batch);
+		return ValueUtil.isEqualIgnoreCase(DasConfigConstants.DAS_CATEGORIZATION_QTY_MODE_FIX, val);
+	}
+	
+	
+	/**
+	 * DAS KIOSK 중분류 화면에서 호기 정렬을 오름차순으로 할 것 인지 여부
+	 * 
+	 * @param batch
+	 * @return
+	 */
+	public static boolean isCategorizationRackSortMode(JobBatch batch) {
+		// job.das.middleassort.rack.sort.ascending
+		String val = getConfigValue(batch, DasConfigConstants.DAS_MIDDLEASSORT_RACK_SORT_ASEND, LogisConstants.TRUE_STRING);
+		return ValueUtil.isEqualIgnoreCase(val, LogisConstants.TRUE_STRING);
 	}
 	
 }

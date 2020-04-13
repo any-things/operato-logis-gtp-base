@@ -14,7 +14,7 @@ import xyz.anythings.base.service.util.BatchJobConfigUtil;
  * 4. 작업 배치에서 조회할 내용이 아닌 설정은 (성격상 작업 배치가 결정되지 않은 시점에 필요한 설정) Setting 정보에 존재한다.
  * 
  * 반품 작업 설정 항목
- *  - job.rtn.cell-sku.mapping.point			셀 - SKU 매핑 시점 (P:주문가공시, A:분류 시)		A
+ *  - job.rtn.cell-boxid.mapping.point			셀 - 박스 매핑 시점 (P: 주문 가공시, A: 분류 시)		A
  *  - job.rtn.preproces.cell.mapping.field		셀에 할당할 대상 필드 (매장, 상품, 주문번호 …) 		sku_cd
  *   
  * @author shortstop
@@ -28,8 +28,8 @@ public class RtnBatchJobConfigUtil extends BatchJobConfigUtil {
 	 * @return
 	 */
 	public static String getCellSkuMappingPoint(JobBatch batch) {
-		// job.rtn.cell-sku.mapping.point						
-		return getConfigValue(batch, DasConfigConstants.RTN_CELL_SKU_MAPPING_POINT, DasConfigConstants.RTN_CELL_SKU_MAPPING_POINT_PREPROCESS);
+		// job.rtn.cell-boxid.mapping.point						
+		return getConfigValue(batch, DasConfigConstants.RTN_CELL_BOXID_MAPPING_POINT, DasConfigConstants.DAS_CELL_BOX_MAPPING_POINT_PREPROCESS);
 	}
 	
 	/**

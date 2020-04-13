@@ -236,4 +236,13 @@ public class RtnQueryStore extends AbstractQueryStore {
 		return this.getQueryByPath("etc/CellSorting");
 	}
 
+	/**
+	 * 중분류 쿼리 
+	 * 
+	 * @return
+	 */
+	public String getRtnCategorizationQuery() {
+		return this.getQueryByPath("pick/RtnCategorization");
+	}
+
 }

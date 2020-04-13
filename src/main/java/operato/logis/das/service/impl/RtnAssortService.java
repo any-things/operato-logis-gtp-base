@@ -39,6 +39,7 @@ import xyz.elidom.exception.ElidomException;
 import xyz.elidom.exception.server.ElidomRuntimeException;
 import xyz.elidom.sys.SysConstants;
 import xyz.elidom.sys.util.DateUtil;
+import xyz.elidom.sys.util.MessageUtil;
 import xyz.elidom.sys.util.ThrowUtil;
 import xyz.elidom.util.ThreadUtil;
 import xyz.elidom.util.ValueUtil; 
@@ -133,7 +134,8 @@ public class RtnAssortService extends AbstractClassificationService implements I
 			return LogisCodeConstants.INPUT_TYPE_IND_CD;
 			
 		} else {
-			throw new ElidomRuntimeException("스캔한 정보는 어떤 코드 유형 인지 구분할 수 없습니다.");
+			String msg = MessageUtil.getMessage("CANT_DISTINGUISH_WHAT_INPUT_TYPE", "Can't distinguish what type of input the scanned information is.");
+			throw new ElidomRuntimeException(msg);
 		}
 	}
 
@@ -166,9 +168,11 @@ public class RtnAssortService extends AbstractClassificationService implements I
 					break;
 					
 				// 풀 박스
-				//case LogisCodeConstants.CLASSIFICATION_ACTION_FULL :
-				//	this.fullBoxing(exeEvent);
-				//	break;
+				case LogisCodeConstants.CLASSIFICATION_ACTION_FULL :
+					if(exeEvent instanceof IClassifyOutEvent) {
+						this.fullBoxing((IClassifyOutEvent)exeEvent);
+					}
+					break;
 			}
 		} catch (Throwable th) {
 			IClassifyErrorEvent errorEvent = new ClassifyErrorEvent(exeEvent, exeEvent.getEventStep(), th);
@@ -198,19 +202,21 @@ public class RtnAssortService extends AbstractClassificationService implements I
 		condition.addFilter("comCd", comCd);
 		// 설정에서 셀 - 박스와 매핑될 타겟 필드를 조회  
 		String classFieldName = RtnBatchJobConfigUtil.getBoxMappingTargetField(batch);
-		condition.addFilter(classFieldName, "noteq", classCd);
+		condition.addFilter(classFieldName, SysConstants.NOT_EQUAL, classCd);
 		condition.addFilter("equipCd", batch.getEquipCd());
 		condition.addFilter("status", LogisConstants.JOB_STATUS_PICKING);
-		condition.addFilter("pickingQty", ">=", 1);
+		condition.addFilter("pickingQty", SysConstants.GREATER_THAN_EQUAL, 1);
 		
 		if(this.queryManager.selectSize(JobInstance.class, condition) > 0) { 
-			throw ThrowUtil.newValidationErrorWithNoLog("투입 이후 확정 처리를 안 한 셀이 있습니다.");
+			// 투입한 후 완료 처리를 안 한 작업이 있습니다
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "NOT_BEEN_COMPLETED_AFTER_INPUT");
 		}
 		
 		// 2. 작업 인스턴스 조회 
 		List<JobInstance> jobList = this.serviceDispatcher.getJobStatusService(batch).searchPickingJobList(batch, null, classCd);
 		if(ValueUtil.isEmpty(jobList)) {
-			throw ThrowUtil.newValidationErrorWithNoLog("투입 처리할 작업이 존재하지 않습니다.");
+			// 투입한 상품으로 처리할 작업이 없습니다
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "NO_JOBS_TO_PROCESS_BY_INPUT");
 		}
 		
 		JobInstance job = jobList.get(0);
@@ -240,8 +246,8 @@ public class RtnAssortService extends AbstractClassificationService implements I
 			this.serviceDispatcher.getIndicationService(batch).indicatorOnForPick(job, 0, job.getPickingQty(), 0);
 			
 		} else {
-			// 처리 가능한 수량 초과.
-			throw ThrowUtil.newValidationErrorWithNoLog("처리 예정 수량을 초과 했습니다.");
+			// 작업 오더의 계획 수량을 초과했습니다.
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "WORK_ORDER_OVER_QTY");
 		} 
 		 
 		return job;
