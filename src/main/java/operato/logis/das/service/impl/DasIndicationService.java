@@ -90,9 +90,12 @@ public class DasIndicationService extends AbstractLogisService implements IDasIn
 
 	@Override
 	public List<JobInstance> indicatorsOn(JobBatch batch, boolean relight, List<JobInstance> jobList) {
-		IIndRequestService indReqSvc = this.getIndicatorRequestService(batch.getId());
-		Map<String, List<IIndOnInfo>> indOnForPickList = RuntimeIndServiceUtil.buildIndOnList(!relight, batch, jobList, true);
-		indReqSvc.requestIndListOn(batch.getDomainId(), batch.getStageCd(), batch.getJobType(), GwConstants.IND_ACTION_TYPE_PICK, indOnForPickList);
+		if(ValueUtil.isNotEmpty(jobList)) {
+			IIndRequestService indReqSvc = this.getIndicatorRequestService(batch.getId());
+			Map<String, List<IIndOnInfo>> indOnForPickList = RuntimeIndServiceUtil.buildIndOnList(!relight, batch, jobList, true);
+			indReqSvc.requestIndListOn(batch.getDomainId(), batch.getStageCd(), batch.getJobType(), GwConstants.IND_ACTION_TYPE_PICK, indOnForPickList);
+		}
+		
 		return jobList;
 	}
 

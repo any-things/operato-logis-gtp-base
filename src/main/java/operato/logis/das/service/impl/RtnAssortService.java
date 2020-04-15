@@ -298,7 +298,7 @@ public class RtnAssortService extends AbstractClassificationService implements I
 		JobInstance job = exeEvent.getJobInstance();
 		
 		// 1. 이미 작업 취소 상태이면 스킵
-		if(ValueUtil.isEqualIgnoreCase(LogisConstants.JOB_STATUS_CANCEL, job.getStatus())) {
+		if(ValueUtil.isEqualIgnoreCase(LogisConstants.JOB_STATUS_CANCEL, job.getStatus()) || job.getPickingQty() == 0) {
 			return;
 			
 		// 2. 상태 체크, 표시기에서 처리했고 이미 완료된 작업이라면 다음 작업 표시기 점등
@@ -453,7 +453,8 @@ public class RtnAssortService extends AbstractClassificationService implements I
 	public JobInstance splitJob(JobInstance job, WorkCell workCell, int splitQty) {
 		// 1. 작업 분할이 가능한 지 체크
 		if(job.getPickQty() - splitQty < 0) {
-			throw new ElidomRuntimeException("예정수량보다 분할수량이 커서 작업분할 처리를 할 수 없습니다.");
+			String msg = MessageUtil.getMessage("SPLIT_QTY_LARGER_THAN_PLANNED_QTY", "예정수량보다 분할수량이 커서 작업분할 처리를 할 수 없습니다");
+			throw new ElidomRuntimeException(msg);
 		}
 		
 		// 2. 기존 작업 데이터 복사 
