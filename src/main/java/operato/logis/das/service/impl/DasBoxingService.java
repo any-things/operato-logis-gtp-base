@@ -144,7 +144,7 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 
 	@Override
 	public BoxPack partialFullboxing(JobBatch batch, WorkCell workCell, List<JobInstance> jobList, Integer fullboxQty, Object... params) {
-		throw ThrowUtil.newNotSupportedSomething("method");
+		throw ThrowUtil.newNotSupportedMethod();
 	}
 
 	@Override

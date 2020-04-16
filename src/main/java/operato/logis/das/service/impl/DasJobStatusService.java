@@ -2,6 +2,7 @@ package operato.logis.das.service.impl;
 
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -16,6 +17,7 @@ import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.elidom.dbist.dml.Page;
 import xyz.elidom.dbist.dml.Query;
+import xyz.elidom.sys.SysConstants;
 import xyz.elidom.sys.util.ValueUtil;
 
 /**
@@ -68,18 +70,26 @@ public class DasJobStatusService extends AbstractJobStatusService {
 
 	@Override
 	public Page<JobInput> paginateInputList(JobBatch batch, String equipCd, String status, int page, int limit) {
-		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId(), page, limit);
-		condition.addFilter("batchId", batch.getId());
-		
-		if(ValueUtil.isNotEmpty(equipCd)) {
-			condition.addFilter("equipCd", equipCd);
-		}
-		
-		if(ValueUtil.isNotEmpty(status)) {
-			condition.addFilter("status", status);
-		}
-		
-		return this.queryManager.selectPage(JobInput.class, condition);
+		StringJoiner sql = new StringJoiner(SysConstants.LINE_SEPARATOR);
+		sql.add("SELECT")
+		   .add("	I.ID, I.INPUT_SEQ, I.SKU_CD, J.SKU_NM, I.STATUS, I.INPUT_QTY, SUM(J.PICK_QTY) AS PLAN_QTY, SUM(J.PICKED_QTY) AS RESULT_QTY")
+		   .add("FROM")
+		   .add("	JOB_INPUTS I INNER JOIN JOB_INSTANCES J ON I.DOMAIN_ID = J.DOMAIN_ID AND I.BATCH_ID = J.BATCH_ID AND I.INPUT_SEQ = J.INPUT_SEQ")
+		   .add("WHERE")
+		   .add(" 	I.DOMAIN_ID = :domainId")
+		   .add(" 	AND I.BATCH_ID = :batchId")
+		   .add(" 	AND J.EQUIP_CD = :equipCd")
+		   .add("   #if($statuses)")
+		   .add(" 	AND J.STATUS IN (:statuses)")
+		   .add("   #end")
+		   .add("GROUP BY")
+		   .add("	I.ID, I.INPUT_SEQ, I.SKU_CD, J.SKU_NM, I.STATUS, I.INPUT_QTY")
+		   .add("ORDER BY")
+		   .add("	I.INPUT_SEQ DESC");
+
+		List<String> statuses = (ValueUtil.isNotEmpty(status) && ValueUtil.isEqualIgnoreCase(status, "U")) ? LogisConstants.JOB_STATUS_WIPC : null;
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,equipCd,statuses", batch.getDomainId(), batch.getId(), equipCd, statuses);
+		return this.queryManager.selectPageBySql(sql.toString(), params, JobInput.class, page, limit);
 	}
 
 	@Override

@@ -92,7 +92,10 @@ public class RtnAssortService extends AbstractClassificationService implements I
 		if(RtnBatchJobConfigUtil.isIndOnAssignedCellWhenInstruction(batch)) {
 			// 게이트웨이 리부팅 시에는 리부팅 프로세스 완료시까지 약 1분여간 기다린다.
 			if(gwReboot) {
-				ThreadUtil.sleep(60000);
+				int sleepTime = RtnBatchJobConfigUtil.getWaitDuarionIndOnAssignedCellWhenInstruction(batch);
+				if(sleepTime > 0) {
+					ThreadUtil.sleep(sleepTime * 1000);
+				}
 			}
 			
 			// 표시기에 박스 매핑 표시 
@@ -255,29 +258,30 @@ public class RtnAssortService extends AbstractClassificationService implements I
 
 	@Override
 	public Object inputSkuBundle(IClassifyInEvent inputEvent) {
-		throw new ElidomRuntimeException("묶음 투입은 지원하지 않습니다.");
+		// 묶음 투입은 지원하지 않습니다.
+		throw ThrowUtil.newValidationErrorWithNoLog(true, "NOT_SUPPORTED_METHOD");
 	}
 
 	@Override
 	public Object inputSkuBox(IClassifyInEvent inputEvent) {
-		throw new ElidomRuntimeException("박스 단위 투입은 지원하지 않습니다.");
+		// 박스 단위 투입은 지원하지 않습니다.
+		throw ThrowUtil.newValidationErrorWithNoLog(true, "NOT_SUPPORTED_METHOD");
 	}
 
 	@Override
 	public Object inputForInspection(IClassifyInEvent inputEvent) {
-		throw new ElidomRuntimeException("검수를 위한 투입은 지원하지 않습니다.");
+		// 검수를 위한 투입은 지원하지 않습니다.
+		throw ThrowUtil.newValidationErrorWithNoLog(true, "NOT_SUPPORTED_METHOD");
 	}
 
 	@Override
-	public void confirmAssort(IClassifyRunEvent exeEvent) { 
+	public void confirmAssort(IClassifyRunEvent exeEvent) {
+		// 1. 이벤트에서 작업 데이터 추출
 		JobInstance job = exeEvent.getJobInstance();
 		
-		// 1. 확정 처리 할 수 없다면 
-		if(job.isDoneJob() || job.getPickedQty() >= job.getPickQty()) {
-			this.doNextJob(job, exeEvent.getWorkCell(), this.checkCellAssortEnd(job, false));
-			
-		// 2. 확정 처리
-		} else {
+		// 2. 확정 처리 
+		if(job.isTodoJob() && job.getPickedQty() < job.getPickQty()) {
+			// 2.1 작업 확정 처리 
 			int resQty = job.getPickingQty();
 			job.setPickedQty(job.getPickedQty() + resQty);
 			job.setPickingQty(0);
@@ -285,67 +289,60 @@ public class RtnAssortService extends AbstractClassificationService implements I
 			job.setStatus(status);
 			this.queryManager.update(job, "pickingQty", "pickedQty", "status", "updatedAt");
 			
-			// 3. 주문 정보 업데이트 처리
-			this.updateOrderPickedQtyByConfirm(job, resQty);
-			
-			// 4. 다음 작업 처리
-			this.doNextJob(job, exeEvent.getWorkCell(), this.checkCellAssortEnd(job, false));			
+			// 2.2 주문 정보 업데이트 처리
+			this.updateOrderPickedQtyByConfirm(job, resQty);			
 		}
+		
+		// 3. 다음 작업 처리
+		this.doNextJob(job, exeEvent.getWorkCell(), this.checkCellAssortEnd(job, false));
 	}
 
 	@Override
 	public void cancelAssort(IClassifyRunEvent exeEvent) {
+		// 1. 이벤트에서 작업 데이터 추출
 		JobInstance job = exeEvent.getJobInstance();
 		
-		// 1. 이미 작업 취소 상태이면 스킵
+		// 2. 이미 작업 취소 상태이면 스킵
 		if(ValueUtil.isEqualIgnoreCase(LogisConstants.JOB_STATUS_CANCEL, job.getStatus()) || job.getPickingQty() == 0) {
 			return;
-			
-		// 2. 상태 체크, 표시기에서 처리했고 이미 완료된 작업이라면 다음 작업 표시기 점등
-		} else if(job.isDoneJob()) {
-			this.doNextJob(job, exeEvent.getWorkCell(), this.checkCellAssortEnd(job, false));
-			
-		// 3. 취소 처리
-		} else {
-			job.setPickingQty(0);
-			this.queryManager.update(job, "pickingQty", "updatedAt");
-			// 다음 작업 처리
-			this.doNextJob(job, exeEvent.getWorkCell(), this.checkCellAssortEnd(job, false));			
 		}
+		
+		// 3. 작업 취소 처리 
+		if(job.isTodoJob()) {
+			job.setPickingQty(0);
+			this.queryManager.update(job, "pickingQty", "updatedAt");			
+		}
+			
+		// 4. 다음 작업 처리
+		this.doNextJob(job, exeEvent.getWorkCell(), this.checkCellAssortEnd(job, false));
 	}
 
 	@Override
 	public int splitAssort(IClassifyRunEvent exeEvent) { 
+		// 1. 이벤트에서 작업 데이터 추출
 		JobInstance job = exeEvent.getJobInstance();
 		int resQty = exeEvent.getResQty();
 		
-		// 1. 작업 상태 체크, 처리할 수량이 0이면 현재 로케이션에 '피킹 중' 상태 작업 표시기 재점등
-		if(resQty == 0 || job.isDoneJob()) {
-			this.doNextJob(job, exeEvent.getWorkCell(), this.checkCellAssortEnd(job, false));
-			return 0;
-			
-		// 2. 수량 조절 처리 
-		} else {
+		// 2. 수량 조절 처리
+		if(resQty > 0 && job.isDoneJob()) {
+			// 2.1 작업 수량 조절 처리
 			int pickedQty = job.getPickedQty() + resQty;
 			job.setPickingQty(0);
 			job.setPickedQty(pickedQty);
-			
 			if(job.getPickedQty() >= job.getPickQty()) { 
 				job.setStatus(LogisConstants.JOB_STATUS_FINISH);
 			}
-			
-			// 2-1. 수량 조절 처리 
 			this.queryManager.update(job, "pickingQty", "pickedQty", "status", "updatedAt");
 			
-			// 2-2. 주문 정보 업데이트 처리
-			this.updateOrderPickedQtyByConfirm(job, resQty);
-			
-			// 2-3. 다음 작업 처리
-			this.doNextJob(job, exeEvent.getWorkCell(), this.checkCellAssortEnd(job, false));
-			
-			// 2-4. 조정 수량 리턴 
-			return resQty;
+			// 2.2. 주문 정보 업데이트 처리
+			this.updateOrderPickedQtyByConfirm(job, resQty);			
 		}
+				
+		// 3. 다음 작업 처리
+		this.doNextJob(job, exeEvent.getWorkCell(), this.checkCellAssortEnd(job, false));
+		
+		// 4. 조정 수량 리턴 
+		return resQty;
 	}
 
 	@Override
@@ -392,7 +389,9 @@ public class RtnAssortService extends AbstractClassificationService implements I
 		
 		// 2. 풀 박스 체크
 		if(ValueUtil.isEqualIgnoreCase(LogisConstants.JOB_STATUS_BOXED, job.getStatus())) {
-			throw ThrowUtil.newValidationErrorWithNoLog("작업[" + job.getId() + "]은 이미 풀 박스가 완료되었습니다.");
+			// 이미 처리된 항목입니다. --> "작업[" + job.getId() + "]은 이미 풀 박스가 완료되었습니다."
+			String msg = MessageUtil.getMessage("ALREADY_BEEN_PROCEEDED", "Already been proceeded.");
+			throw new ElidomRuntimeException(msg);
 		}
 		
 		// 3. 풀 박스 처리 
@@ -414,7 +413,9 @@ public class RtnAssortService extends AbstractClassificationService implements I
 		
 		// 2. 풀 박스 체크
 		if(ValueUtil.isEqualIgnoreCase(LogisConstants.JOB_STATUS_BOXED, job.getStatus())) {
-			throw ThrowUtil.newValidationErrorWithNoLog("작업[" + job.getId() + "]은 이미 풀 박스가 완료되었습니다.");
+			// 이미 처리된 항목입니다. --> "작업[" + job.getId() + "]은 이미 풀 박스가 완료되었습니다."
+			String msg = MessageUtil.getMessage("ALREADY_BEEN_PROCEEDED", "Already been proceeded.");
+			throw new ElidomRuntimeException(msg);
 		}
 		
 		// 3. 풀 박스 처리
@@ -434,7 +435,8 @@ public class RtnAssortService extends AbstractClassificationService implements I
 	public BoxPack cancelBoxing(Long domainId, BoxPack box) {
 		// 1. 풀 박스 취소 전 처리
 		if(box == null) {
-			throw ThrowUtil.newValidationErrorWithNoLog("박싱 취소할 박스가 없습니다.");
+			// 셀에 박싱 처리할 작업이 없습니다 --> 박싱 취소할 박스가 없습니다.
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "NO_JOBS_FOR_BOXING");
 		}
 		
 		// 2. 풀 박스 취소 

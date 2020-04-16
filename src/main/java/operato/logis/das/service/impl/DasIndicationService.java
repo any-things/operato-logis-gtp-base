@@ -98,6 +98,17 @@ public class DasIndicationService extends AbstractLogisService implements IDasIn
 		
 		return jobList;
 	}
+	
+	@Override
+	public List<JobInstance> indicatorsOn(JobBatch batch, boolean relight, String indOnAction, List<JobInstance> jobList) {
+		if(ValueUtil.isNotEmpty(jobList)) {
+			IIndRequestService indReqSvc = this.getIndicatorRequestService(batch.getId());
+			Map<String, List<IIndOnInfo>> indOnForPickList = RuntimeIndServiceUtil.buildIndOnList(!relight, batch, jobList, true);
+			indReqSvc.requestIndListOn(batch.getDomainId(), batch.getStageCd(), batch.getJobType(), indOnAction, indOnForPickList);
+		}
+		
+		return jobList;
+	}
 
 	@Override
 	public void indicatorOnForPick(JobInstance job, Integer firstQty, Integer secondQty, Integer thirdQty) {
@@ -130,6 +141,17 @@ public class DasIndicationService extends AbstractLogisService implements IDasIn
 		}
 		
 		indReqSvc.requestIndEndDisplay(job.getDomainId(), job.getStageCd(), job.getJobType(), job.getGwPath(), job.getIndCd(), job.getId(), finalEnd);
+	}
+	
+	@Override
+	public void indicatorOnForInspect(JobInstance job) {
+		IIndRequestService indReqSvc = this.getIndicatorRequestService(job.getBatchId());
+		
+		if(ValueUtil.isEmpty(job.getGwPath())) {
+			this.setIndInfoToJob(job);
+		}
+		
+		indReqSvc.requestIndOnForInspect(job.getDomainId(), job.getStageCd(), job.getJobType(), job.getGwPath(), job.getIndCd(), job.getId(), job.getColorCd(), null, job.getPickedQty());
 	}
 
 	@Override
@@ -288,15 +310,21 @@ public class DasIndicationService extends AbstractLogisService implements IDasIn
 		String[] rotations = BatchIndConfigUtil.getIndColorRotations(job.getBatchId());
 		if(ValueUtil.isNotEmpty(rotations)) {
 			int colorIdx = Arrays.asList(rotations).indexOf(prevColor);
-			if(colorIdx >= rotations.length) {
-				colorIdx = 0;
-			} else {
-				colorIdx = colorIdx + 1;
-			}
-			
+			colorIdx = (colorIdx >= rotations.length) ? 0 : colorIdx + 1; 
 			return rotations[colorIdx];
 		} else {
-			return LogisConstants.COLOR_RED;
+			return BatchIndConfigUtil.getDasJobColor(job.getBatchId());
+		}
+	}
+
+	@Override
+	public String prevIndicatorColor(JobInstance job) {
+		if(job.getInputSeq() > 1) {
+			String sql = "select color_cd from job_inputs where domain_id = :domainId and batch_id = :batchId and input_seq = (select max(input_seq) as input_seq from job_inputs where domain_id = :domainId and batch_id = :batchId and input_seq < :inputSeq)";
+			Map<String, Object> params = ValueUtil.newMap("domainId,batchId,inputSeq", job.getDomainId(), job.getBatchId(), job.getInputSeq());
+			return this.queryManager.selectBySql(sql, params, String.class);
+		} else {
+			return null;
 		}
 	}
 	
