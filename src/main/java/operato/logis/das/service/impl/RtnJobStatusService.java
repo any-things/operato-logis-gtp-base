@@ -68,5 +68,13 @@ public class RtnJobStatusService extends AbstractJobStatusService {
 		this.addBatchConditions(batch, condition);
 		return this.queryManager.selectListBySql(sql, condition, JobInstance.class, 0, 0);
 	}
+	
+	@Override
+	public JobInstance findPickingJob(Long domainId, String jobInstanceId) {
+		String sql = this.rtnQueryStore.getSearchPickingJobListQuery();
+		Map<String, Object> params = ValueUtil.newMap("domainId,id", domainId, jobInstanceId);
+		List<JobInstance> jobList = this.queryManager.selectListBySql(sql, params, JobInstance.class, 1, 1);
+		return ValueUtil.isEmpty(jobList) ? null : jobList.get(0);
+	}	
 
 }

@@ -262,5 +262,32 @@ public class DasQueryStore extends AbstractQueryStore {
 	public String getDasSearchWorkingStationQuery() {
 		return this.getQueryByPath("pick/DasSearchWorkingStation");
 	}
+	
+	/**
+	 * 작업 배치내에 작업 중인 투입 리스트 조회 (For KIOSK)
+	 * 
+	 * @return
+	 */
+	public String getDasBatchJobInputListQuery() {
+		return this.getQueryByPath("pick/DasBatchJobInputList");
+	}
+	
+	/**
+	 * 작업 스테이션 내에 투입 리스트 조회를 위한 기준 시퀀스를 조회한다. (For Tablet)
+	 * 
+	 * @return
+	 */
+	public String getDasFindStationWorkingInputSeq() {
+		return this.getQueryByPath("pick/DasFindStationWorkingInputSeq");
+	}
+	
+	/**
+	 * 작업 배치내에 작업 중인 투입 리스트 조회 (For Tablet)
+	 * 
+	 * @return
+	 */
+	public String getDasWorkingJobInputListQuery() {
+		return this.getQueryByPath("pick/DasWorkingJobInputList");
+	}
 
 }

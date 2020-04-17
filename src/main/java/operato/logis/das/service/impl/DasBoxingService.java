@@ -199,10 +199,22 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 	 * @return
 	 */
 	private BoxPack createNewBoxPack(JobBatch batch, List<JobInstance> jobList, WorkCell cell) {
+		// 박스 별 상품 수
+		Long skuCnt = jobList.stream().map(job -> job.getSkuCd()).distinct().count();
+		// 피킹 수량 합계
+		Integer pickedQty = jobList.stream().mapToInt(job -> job.getPickedQty()).sum();
+		// 박스 패킹 생성
 		BoxPack boxPack = ValueUtil.populate(batch, new BoxPack());
 		ValueUtil.populate(jobList.get(0), boxPack);
 		boxPack.setId(null);
 		boxPack.setStatus(BoxPack.BOX_STATUS_BOXED);
+		boxPack.setSkuQty(skuCnt.intValue());
+		boxPack.setPickQty(pickedQty);
+		boxPack.setPickedQty(pickedQty);
+		boxPack.setCreatorId(null);
+		boxPack.setUpdaterId(null);
+		boxPack.setCreatedAt(null);
+		boxPack.setUpdatedAt(null);
 		this.queryManager.insert(boxPack);
 		return boxPack;
 	}
@@ -215,6 +227,8 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 	 */
 	private void generateBoxItemsBy(BoxPack boxPack, List<JobInstance> jobList) {
 		// 1. 주문 정보 조회
+		JobInstance job = jobList.get(0);
+		job.setBoxPackId(boxPack.getId());
 		List<Order> sources = this.searchOrdersForBoxItems(jobList.get(0));
  		
  		// 2. 박스 내품 내역 
@@ -225,12 +239,18 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 			BoxItem boxItem = new BoxItem();
 			boxItem = ValueUtil.populate(source, boxItem);
 			boxItem.setId(null);
+			boxItem.setBoxPackId(boxPack.getId());
 			boxItem.setPickQty(source.getPickedQty());
 			boxItem.setPassFlag(false);
 			boxItem.setStatus(BoxPack.BOX_STATUS_BOXED);
+			boxItems.add(boxItem);
+			
+			int boxedQty = (source.getBoxedQty() == null ? 0 : source.getBoxedQty()) + source.getPickedQty();
+			source.setBoxedQty(boxedQty);
 		};
 		
 		// 4. 박스 내품 내역 생성
+		AnyOrmUtil.updateBatch(sources, 100, "boxedQty", "updatedAt");
 		AnyOrmUtil.insertBatch(boxItems, 100);
 	}
 	
@@ -243,11 +263,11 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 	private List<Order> searchOrdersForBoxItems(JobInstance job) {
 		StringJoiner sql = new StringJoiner(SysConstants.LINE_SEPARATOR);
 		sql.add("SELECT")
-		   .add("	ID, DOMAIN_ID, '" + job.getBoxPackId() + "' AS BOX_PACK_ID, ORDER_NO, ORDER_LINE_NO, ORDER_DETAIL_ID, COM_CD, CLASS_CD, SHOP_CD, SKU_CD, SKU_NM, PACK_TYPE, ORDER_QTY, PICKED_QTY, BOXED_QTY")
+		   .add("	ID, DOMAIN_ID, '" + job.getBoxPackId() + "' AS BOX_PACK_ID, ORDER_NO, ORDER_LINE_NO, ORDER_DETAIL_ID, COM_CD, CLASS_CD, SHOP_CD, SKU_CD, SKU_NM, PACK_TYPE, ORDER_QTY, (PICKED_QTY - NVL(BOXED_QTY, 0)) AS PICKED_QTY, NVL(BOXED_QTY, 0) AS BOXED_QTY")
 		   .add("FROM")
 		   .add("	ORDERS")
 		   .add("WHERE")
-		   .add("	DOMAIN_ID = :domainId AND BATCH_ID = :batchId AND COM_CD = :comCd AND CLASS_CD = :classCd AND PICKED_QTY > 0 AND PICKED_QTY > BOXED_QTY)")
+		   .add("	DOMAIN_ID = :domainId AND BATCH_ID = :batchId AND COM_CD = :comCd AND CLASS_CD = :classCd AND PICKED_QTY > 0 AND (BOXED_QTY IS NULL OR PICKED_QTY > BOXED_QTY)")
 		   .add("ORDER BY")
 		   .add("	ORDER_NO ASC, ORDER_LINE_NO ASC, SKU_CD ASC, ORDER_QTY DESC");
 
