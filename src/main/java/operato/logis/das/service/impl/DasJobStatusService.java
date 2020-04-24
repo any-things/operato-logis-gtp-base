@@ -58,7 +58,7 @@ public class DasJobStatusService extends AbstractJobStatusService {
 		params.remove("status");
 		params.put("inputSeq", inputSeq);
 		sql = this.dasQueryStore.getDasWorkingJobInputListQuery();
-		return this.queryManager.selectListBySql(sql, params, JobInput.class, 0, 0);		
+		return this.queryManager.selectListBySql(sql, params, JobInput.class, 0, 0);
 	}
 
 	@Override
