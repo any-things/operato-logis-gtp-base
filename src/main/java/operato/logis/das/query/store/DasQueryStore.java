@@ -21,12 +21,12 @@ public class DasQueryStore extends AbstractQueryStore {
 	}
 	
 	/**
-	 * WMS I/F 테이블로 부터 반품 BatchReceipt 데이터를 조회
+	 * WMS I/F 테이블로 부터 출고 BatchReceipt 데이터를 조회
 	 * 
 	 * @return
 	 */
-	public String getWmsIfToReceiptDataQuery() {
-		return this.getQueryByPath("batch/WmsIfToReceiptData");
+	public String getOrderSummaryToReceive() {
+		return this.getQueryByPath("batch/OrderSummaryToReceive");
 	}
 	
 	/**

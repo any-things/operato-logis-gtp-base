@@ -25,8 +25,8 @@ public class RtnQueryStore extends AbstractQueryStore {
 	 * 
 	 * @return
 	 */
-	public String getWmsIfToReceiptDataQuery() {
-		return this.getQueryByPath("batch/WmsIfToReceiptData");
+	public String getOrderSummaryToReceive() {
+		return this.getQueryByPath("batch/OrderSummaryToReceive");
 	}
 	
 	/**
