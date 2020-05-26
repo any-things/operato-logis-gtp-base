@@ -150,7 +150,7 @@ public class DasBatchService extends AbstractLogisService implements IBatchServi
 	 * @return
 	 */
 	protected void deletePreprocess(JobBatch batch) {
-		this.queryManager.executeBySql("DELETE ORDER_PREPROCESSES WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId", ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId()));
+		this.queryManager.executeBySql("DELETE FROM ORDER_PREPROCESSES WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId", ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId()));
 	}
 	
 	/**
