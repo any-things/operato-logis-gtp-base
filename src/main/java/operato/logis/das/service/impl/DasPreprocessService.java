@@ -379,7 +379,7 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	}
 
 	@Override
-	public int generatePreprocess(JobBatch batch) {
+	public int generatePreprocess(JobBatch batch, Object... params) {
 		// 1. 주문 가공 데이터 삭제  
 		this.deletePreprocess(batch);
 		
