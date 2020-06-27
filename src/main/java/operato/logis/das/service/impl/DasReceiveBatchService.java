@@ -53,7 +53,6 @@ public class DasReceiveBatchService extends AbstractQueryService {
 	public void handleReadyToReceive(BatchReceiveEvent event) { 
 		BatchReceipt receipt = event.getReceiptData();
 		String jobType = event.getJobType();
-		
 		receipt = this.createReadyToReceiveData(receipt,jobType);
 		event.setReceiptData(receipt);
 	}
@@ -67,9 +66,8 @@ public class DasReceiveBatchService extends AbstractQueryService {
 	 * @return
 	 */
 	private BatchReceipt createReadyToReceiveData(BatchReceipt receipt, String jobType, Object ... params) {
-		// 1. 대기 상태 이거나 진행 중인 수신이 있는지 확인
-		
-		BatchReceipt runBatchReceipt = this.checkRunningOrderReceipt(receipt,jobType);
+		// 1. 대기 상태 이거나 진행 중인 수신이 있는지 확인		
+		BatchReceipt runBatchReceipt = this.checkRunningOrderReceipt(receipt, jobType);
 		if(runBatchReceipt != null) return runBatchReceipt;
 		
 		// 2. WMS IF 테이블에서 수신 대상 데이터 확인
@@ -80,10 +78,10 @@ public class DasReceiveBatchService extends AbstractQueryService {
 			item.setBatchId(LogisBaseUtil.newReceiptJobBatchId(receipt.getDomainId()));
 			item.setBatchReceiptId(receipt.getId());
 			this.queryManager.insert(item);
+			receipt.addItem(item);
 		}
 		
 		// 4. 수신 아이템 설정 및 리턴
-		receipt.setItems(receiptItems);
 		return receipt;
 	}
 	
