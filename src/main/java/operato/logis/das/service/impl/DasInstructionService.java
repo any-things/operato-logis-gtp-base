@@ -291,7 +291,7 @@ public class DasInstructionService extends AbstractQueryService  implements IIns
 		
 		// 4. WorkCell 정보 삭제
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId", domainId, batch.getId());
-		String sql = "delete work_cells where domain_id = :domainId and batch_id = :batchId";
+		String sql = "delete from work_cells where domain_id = :domainId and batch_id = :batchId";
 		int count = this.queryManager.executeBySql(sql, params);
 				
 		// 5. 작업 실행 데이터 삭제

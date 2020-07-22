@@ -304,11 +304,11 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 	 */
 	public List<OrderGroup> searchOrderGroupList(JobBatch batch) {
 		// 스테이지 분류 설정에서 주문 그룹과 매핑할 필드명 조회
-		String orderGroupFieldName = StageJobConfigUtil.getOrderGroupField(batch.getStageCd(), batch.getJobType());
+		// String orderGroupFieldName = StageJobConfigUtil.getOrderGroupField(batch.getStageCd(), batch.getJobType());
 		// 주문 그룹 리스트 쿼리 조회
 		String sql = this.dasQueryStore.getOrderGroupListQuery();
 		// 주문 그룹 리스트 쿼리에서 CLASS_CD를 주문 그룹과 매핑할 필드명으로 Replace
-		sql = sql.replaceAll("CLASS_CD", orderGroupFieldName);
+		// sql = sql.replaceAll("CLASS_CD", orderGroupFieldName);
 		// 쿼리 실행
 		return this.queryManager.selectListBySql(sql, ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId()), OrderGroup.class, 0, 0);
 	}
@@ -528,6 +528,7 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
  		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		condition.addSelect("id", "batchId", "comCd", "cellAssgnCd", "cellAssgnNm", "equipCd", "equipNm", "subEquipCd", "skuQty", "totalPcs");
 		condition.addFilter("batchId", batch.getId());
+		condition.addFilter("subEquipCd", SysConstants.IS_BLANK, SysConstants.EMPTY_STRING);
 		condition.addOrder("totalPcs", false);
 		return this.queryManager.selectList(OrderPreprocess.class, condition);
 	}

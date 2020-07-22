@@ -2,7 +2,7 @@ SELECT   *
 FROM     CELLS X
 WHERE    DOMAIN_ID = :domainId
 AND      EQUIP_CD IN (:equipCds)
-AND      ACTIVE_FLAG = 1
+AND      ACTIVE_FLAG = true
 AND
          (
                   SIDE_CD =
