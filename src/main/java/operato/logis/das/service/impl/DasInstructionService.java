@@ -12,6 +12,7 @@ import operato.logis.das.query.store.DasQueryStore;
 import operato.logis.das.service.util.RtnBatchJobConfigUtil;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.JobBatch;
+import xyz.anythings.base.entity.JobConfigSet;
 import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.entity.Order;
 import xyz.anythings.base.entity.OrderPreprocess;
@@ -21,6 +22,7 @@ import xyz.anythings.base.service.api.IIndicationService;
 import xyz.anythings.base.service.api.IInstructionService;
 import xyz.anythings.base.service.impl.LogisServiceDispatcher;
 import xyz.anythings.base.util.LogisBaseUtil;
+import xyz.anythings.gw.entity.IndConfigSet;
 import xyz.anythings.sys.service.AbstractQueryService;
 import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.anythings.sys.util.AnyOrmUtil;
@@ -436,6 +438,20 @@ public class DasInstructionService extends AbstractQueryService  implements IIns
 		rack.setJobType(batch.getJobType());
 		rack.setBatchId(batch.getId());
 		rack.setStatus(JobBatch.STATUS_RUNNING);
+		
+		// 5. 배치별 작업 설정 (JobConfigSet / IndConfigSet 설정)
+		if(ValueUtil.isEmpty(batch.getJobConfigSetId())) {
+			// 5.1 JobConfigSet 설정
+			String jobConfigSetId = AnyEntityUtil.findItemOneColumn(batch.getDomainId(), true, String.class, JobConfigSet.class, "id", "domainId,jobType,stageCd,defaultFlag", batch.getDomainId(), batch.getJobType(), batch.getStageCd(), true);
+			batch.setJobConfigSetId(jobConfigSetId);
+			
+			// 5.2 IndConfigSet 설정
+			String indConfigSetId = AnyEntityUtil.findItemOneColumn(batch.getDomainId(), true, String.class, IndConfigSet.class, "id", "domainId,jobType,stageCd,defaultFlag", batch.getDomainId(), batch.getJobType(), batch.getStageCd(), true);
+			batch.setIndConfigSetId(indConfigSetId);
+			
+			// 5.3 작업 배치 업데이트
+			this.queryManager.update(batch, "jobConfigSetId", "indConfigSetId");
+		}
 	}
 	
 	/**
@@ -542,6 +558,7 @@ public class DasInstructionService extends AbstractQueryService  implements IIns
 			cellList.add(c);
 		}
 		
+		// 3. WorkCell 리스트 생성
 		AnyOrmUtil.insertBatch(cellList, 100);
 	}
 
