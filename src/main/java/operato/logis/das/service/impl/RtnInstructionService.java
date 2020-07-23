@@ -52,6 +52,11 @@ public class RtnInstructionService  extends AbstractQueryService  implements IIn
 	private LogisServiceDispatcher serviceDispatcher;
 	
 	@Override
+	public void targetClassing(JobBatch batch, Object... params) {
+		// TODO Auto-generated method stub
+	}
+	
+	@Override
 	public Map<String, Object> searchInstructionData(JobBatch batch, Object... params) {
 		// 1. 작업 지시 서머리 정보 조회
 		String sql = this.rtnQueryStore.getRtnInstructionSummaryDataQuery();

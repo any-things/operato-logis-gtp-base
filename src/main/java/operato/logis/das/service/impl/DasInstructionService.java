@@ -41,7 +41,7 @@ import xyz.elidom.util.ValueUtil;
  * @author shortstop
  */
 @Component("dasInstructionService")
-public class DasInstructionService extends AbstractQueryService  implements IInstructionService {
+public class DasInstructionService extends AbstractQueryService implements IInstructionService {
 
 	/**
 	 * 출고 작업 쿼리 스토어
@@ -53,6 +53,11 @@ public class DasInstructionService extends AbstractQueryService  implements IIns
 	 */
 	@Autowired
 	private LogisServiceDispatcher serviceDispatcher;
+	
+	@Override
+	public void targetClassing(JobBatch batch, Object... params) {
+		// TODO Auto-generated method stub
+	}
 	
 	@Override
 	public Map<String, Object> searchInstructionData(JobBatch batch, Object... params) {
