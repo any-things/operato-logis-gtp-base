@@ -57,7 +57,16 @@ public class DasInstructionService extends AbstractQueryService implements IInst
 	@Override
 	public void targetClassing(JobBatch batch, Object... params) {
 		Map<String,Object> paramMap = ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId());
+		// 대상 분류 
 		this.queryManager.executeBySql("call sp_order_classification(:domainId,:batchId)", paramMap);
+		
+		
+		JobBatch newSeqBatch = this.queryManager.selectBySql("select MAX(JOB_SEQ::integer) + 1 as job_seq from job_batches where domain_id =:domainId and wms_batch_no=:batchId and job_type='DAS'", paramMap, JobBatch.class);
+		
+		paramMap.put("newBatchSeq", newSeqBatch.getJobSeq());
+		
+		// 회차 분류 
+		this.queryManager.executeBySql("call sp_order_optimization(:domainId,:batchId,:newBatchSeq)", paramMap);
 	}
 	
 	@Override
