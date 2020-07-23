@@ -56,7 +56,8 @@ public class DasInstructionService extends AbstractQueryService implements IInst
 	
 	@Override
 	public void targetClassing(JobBatch batch, Object... params) {
-		// TODO Auto-generated method stub
+		Map<String,Object> paramMap = ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId());
+		this.queryManager.executeBySql("call sp_order_classification(:domainId,:batchId)", paramMap);
 	}
 	
 	@Override
