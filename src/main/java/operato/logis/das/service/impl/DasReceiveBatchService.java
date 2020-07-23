@@ -28,6 +28,7 @@ import xyz.elidom.dbist.dml.Query;
 import xyz.elidom.dbist.util.StringJoiner;
 import xyz.elidom.exception.server.ElidomRuntimeException;
 import xyz.elidom.sys.SysConstants;
+import xyz.elidom.util.BeanUtil;
 import xyz.elidom.util.ValueUtil;
 
 /**
@@ -165,7 +166,9 @@ public class DasReceiveBatchService extends AbstractQueryService {
 		String[] sourceFields = {"WMS_BATCH_NO", "WCS_BATCH_NO", "JOB_DATE", "JOB_SEQ", "JOB_TYPE", "ORDER_DATE", "ORDER_NO", "ORDER_LINE_NO", "ORDER_DETAIL_ID", "CUST_ORDER_NO", "CUST_ORDER_LINE_NO", "COM_CD", "AREA_CD", "STAGE_CD", "EQUIP_TYPE", "EQUIP_CD", "EQUIP_NM", "SUB_EQUIP_CD", "SHOP_CD", "SHOP_NM", "SKU_CD", "SKU_BARCD", "SKU_NM", "BOX_TYPE_CD", "BOX_IN_QTY", "ORDER_QTY", "PICKED_QTY", "BOXED_QTY", "CANCEL_QTY", "BOX_ID", "INVOICE_ID", "ORDER_TYPE", "CLASS_CD", "PACK_TYPE", "VEHICLE_NO", "LOT_NO", "FROM_ZONE_CD", "FROM_CELL_CD", "TO_ZONE_CD", "TO_CELL_CD"};
 		String[] targetFields = {"WMS_BATCH_NO", "WCS_BATCH_NO", "JOB_DATE", "JOB_SEQ", "JOB_TYPE", "ORDER_DATE", "ORDER_NO", "ORDER_LINE_NO", "ORDER_DETAIL_ID", "CUST_ORDER_NO", "CUST_ORDER_LINE_NO", "COM_CD", "AREA_CD", "STAGE_CD", "EQUIP_TYPE", "EQUIP_CD", "EQUIP_NM", "SUB_EQUIP_CD", "SHOP_CD", "SHOP_NM", "SKU_CD", "SKU_BARCD", "SKU_NM", "BOX_TYPE_CD", "BOX_IN_QTY", "ORDER_QTY", "PICKED_QTY", "BOXED_QTY", "CANCEL_QTY", "BOX_ID", "INVOICE_ID", "ORDER_TYPE", "CLASS_CD", "PACK_TYPE", "VEHICLE_NO", "LOT_NO", "FROM_ZONE_CD", "FROM_CELL_CD", "TO_ZONE_CD", "TO_CELL_CD"};
 		String fieldNames = "COM_CD,AREA_CD,STAGE_CD,WMS_BATCH_NO,IF_FLAG";
-		boolean exceptionOccurred = false;
+		
+		// 별도 트랜잭션 처리를 위해 컴포넌트 자신의 레퍼런스 준비
+		DasReceiveBatchService selfSvc = BeanUtil.get(DasReceiveBatchService.class);
 		
 		try {
 			// 2. skip 이면 pass
@@ -181,7 +184,7 @@ public class DasReceiveBatchService extends AbstractQueryService {
 			JobBatch batch = JobBatch.createJobBatch(item.getBatchId(), ValueUtil.toString(item.getJobSeq()), receipt, item);
 			
 			// 5. 데이터 복사
-			this.cloneData(item.getBatchId(), item.getJobSeq(), "wms_if_orders", sourceFields, targetFields, fieldNames, item.getComCd(), item.getAreaCd(), item.getStageCd(), item.getWmsBatchNo(), LogisConstants.N_CAP_STRING);
+			selfSvc.cloneData(item.getBatchId(), item.getJobSeq(), "wms_if_orders", sourceFields, targetFields, fieldNames, item.getComCd(), item.getAreaCd(), item.getStageCd(), item.getWmsBatchNo(), LogisConstants.N_CAP_STRING);
 			
 			// 6. 셀과 매핑될 필드명을 스테이지 별 설정에서 조회
 			/*String classCd = StageJobConfigUtil.getCellMappingTargetField(item.getStageCd(), item.getJobType());
@@ -197,18 +200,11 @@ public class DasReceiveBatchService extends AbstractQueryService {
 			// 9.Wms_if_order 상태 업데이트
 			this.updateWmfIfToReceiptItems(item,receipt.getJobDate());
 			
-		} catch(Exception e) {
-			exceptionOccurred = true;
-			String errMsg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
-			errMsg = errMsg.length() > 400 ? errMsg.substring(0,400) : errMsg;
-			item.updateStatusImmediately(LogisConstants.COMMON_STATUS_ERROR, errMsg);
+		} catch(Throwable th) {
+			// 10. 에러 처리
+			selfSvc.handleReceiveError(th, receipt, item);
 		}
-		
-		// 10. 에러 발생인 경우 수신 상태 에러로 업데이트
-		if(exceptionOccurred) {
-			receipt.updateStatusImmediately(LogisConstants.COMMON_STATUS_ERROR);
-		}
-		
+				
 		return receipt;
 	}
 	
@@ -224,7 +220,7 @@ public class DasReceiveBatchService extends AbstractQueryService {
 	 * @return
 	 */
 	@Transactional(propagation=Propagation.REQUIRES_NEW) 
-	private void cloneData(String batchId, String jobSeq
+	public void cloneData(String batchId, String jobSeq
 								, String sourceTable
 								, String[] sourceFields, String[] targetFields
 								, String fieldNames, Object ... fieldValues) throws Exception {
@@ -270,6 +266,21 @@ public class DasReceiveBatchService extends AbstractQueryService {
 		
 		// 4. 데이터 insert 
 		this.queryManager.insertBatch(targetList);
+	}
+	
+	/**
+	 * 주문 수신시 에러 핸들링
+	 * 
+	 * @param th
+	 * @param receipt
+	 * @param item
+	 */
+	@Transactional(propagation = Propagation.REQUIRES_NEW) 
+	public void handleReceiveError(Throwable th, BatchReceipt receipt, BatchReceiptItem item) {
+		String errMsg = th.getCause() != null ? th.getCause().getMessage() : th.getMessage();
+		errMsg = errMsg.length() > 400 ? errMsg.substring(0,400) : errMsg;
+		item.updateStatusImmediately(LogisConstants.COMMON_STATUS_ERROR, errMsg);
+		receipt.updateStatusImmediately(LogisConstants.COMMON_STATUS_ERROR);
 	}
 	
 	/**
