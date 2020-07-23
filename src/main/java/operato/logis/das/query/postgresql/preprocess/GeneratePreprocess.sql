@@ -1,0 +1,60 @@
+SELECT 
+	DOMAIN_ID,
+	BATCH_ID,
+	JOB_TYPE,
+	COM_CD,
+	
+	#if($cellSkuMapping)
+	'SKU_CD' AS CELL_ASSGN_TYPE,
+	SKU_CD AS CELL_ASSGN_CD,
+	SKU_NM AS CELL_ASSGN_NM,
+	#end
+	
+	#if($cellShopMapping)
+	'SHOP_CD' AS CELL_ASSGN_TYPE,
+	SHOP_CD AS CELL_ASSGN_CD,
+	SHOP_NM AS CELL_ASSGN_NM,
+	#end
+	
+	#if($cellOrderMapping)
+	'ORDER_NO' AS CELL_ASSGN_TYPE,
+	ORDER_NO AS CELL_ASSGN_CD,
+	#end
+	
+	EQUIP_TYPE,
+	EQUIP_CD,
+	EQUIP_NM,
+	SUB_EQUIP_CD,
+	COUNT(DISTINCT(SKU_CD)) AS SKU_QTY,
+	SUM(ORDER_QTY) AS TOTAL_PCS
+FROM 
+	ORDERS
+WHERE 
+	DOMAIN_ID = :domainId
+	AND BATCH_ID = :batchId
+GROUP BY 
+	DOMAIN_ID,
+	BATCH_ID,
+	JOB_TYPE,
+	COM_CD,
+	
+	#if($cellSkuMapping)
+	SKU_CD,
+	SKU_NM,
+	#end
+	
+	#if($cellShopMapping)
+	SHOP_CD,
+	SHOP_NM,
+	#end
+	
+	#if($cellOrderMapping)
+	ORDER_NO,
+	#end
+	
+	EQUIP_TYPE,
+	EQUIP_CD,
+	EQUIP_NM,
+	SUB_EQUIP_CD
+ORDER BY
+	TOTAL_PCS DESC, SKU_QTY DESC

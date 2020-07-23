@@ -384,7 +384,7 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 		this.deletePreprocess(batch);
 		
 		// 2. 주문 가공 데이터를 생성하기 위해 주문 데이터를 조회
-		String cellMappingField = StageJobConfigUtil.getCellMappingTargetField(batch.getStageCd(), batch.getJobType());
+		String cellMappingField = StageJobConfigUtil.getPickingClassCodeField(batch.getStageCd(), batch.getJobType());
 		boolean cellSkuMapping = ValueUtil.isEmpty(cellMappingField) ? true : cellMappingField.toLowerCase().startsWith("sku") ? true : false;
 		boolean cellShopMapping = ValueUtil.isEmpty(cellMappingField) ? true : cellMappingField.toLowerCase().startsWith("shop") ? true : false;
 		boolean cellOrderMapping = ValueUtil.isEmpty(cellMappingField) ? true : cellMappingField.toLowerCase().startsWith("order") ? true : false;
