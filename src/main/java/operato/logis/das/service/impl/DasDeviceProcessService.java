@@ -151,7 +151,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 	 * @param printEvent
 	 */
 	@Async
-	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, classes = PrintEvent.class)
+	//@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, classes = PrintEvent.class) // FIXME
 	public void printLabel(PrintEvent printEvent) {
 		
 		// 현재 도메인 조회
@@ -166,7 +166,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 			String printerName = printer.getPrinterDriver();
 			
 			// 인쇄 요청
-			this.printerCtrl.printLabelByLabelTemplate(agentUrl, printerName, printEvent.getPrintTemplate(), printEvent.getTemplateParams());
+			//this.printerCtrl.printLabelByLabelTemplate(agentUrl, printerName, printEvent.getPrintTemplate(), printEvent.getTemplateParams());	// FIXME
 			
 		} catch (Exception e) {
 			// 예외 처리
