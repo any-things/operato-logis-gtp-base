@@ -138,7 +138,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		// 4. 프린트 이벤트 전송
 		String labelTemplate = DasBatchJobConfigUtil.getInvoiceLabelTemplate(batch);
 		Map<String, Object> printParams = ValueUtil.newMap("box", box);
-		PrintEvent printEvent = new PrintEvent(batch.getDomainId(), printerId, labelTemplate, printParams);
+		PrintEvent printEvent = new PrintEvent(batch.getDomainId(), batch.getJobType(), printerId, labelTemplate, printParams);
 		this.eventPublisher.publishEvent(printEvent);
 		
 		// 5. 결과 리턴 
@@ -151,7 +151,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 	 * @param printEvent
 	 */
 	@Async
-	//@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, classes = PrintEvent.class) // FIXME
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, classes = PrintEvent.class, condition = "#printEvent.jobType == 'DAS'")
 	public void printLabel(PrintEvent printEvent) {
 		
 		// 현재 도메인 조회
@@ -166,7 +166,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 			String printerName = printer.getPrinterDriver();
 			
 			// 인쇄 요청
-			//this.printerCtrl.printLabelByLabelTemplate(agentUrl, printerName, printEvent.getPrintTemplate(), printEvent.getTemplateParams());	// FIXME
+			this.printerCtrl.printLabelByLabelTemplate(agentUrl, printerName, printEvent.getPrintTemplate(), printEvent.getTemplateParams());
 			
 		} catch (Exception e) {
 			// 예외 처리
