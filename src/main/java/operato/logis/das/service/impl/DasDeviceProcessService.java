@@ -85,7 +85,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 	 * @param event
 	 * @return
 	 */ 
-	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/print_invoice/last_all', 'DAS')")
+	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/print_invoice_all', 'DAS')")
 	@Order(Ordered.LOWEST_PRECEDENCE)
 	public Object printLastAllInvoiceLabel(DeviceProcessRestEvent event) {
 		Map<String, Object> reqParams = event.getRequestParams();
@@ -162,6 +162,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		try {
 			// 인쇄 옵션 정보 추출
 			Printer printer = this.queryManager.select(Printer.class, printEvent.getPrinterId());
+			printer = (printer == null) ? this.queryManager.selectByCondition(Printer.class, ValueUtil.newMap("domainId,printerCd", domain.getId(), printEvent.getPrinterId())) : printer;
 			String agentUrl = printer.getPrinterAgentUrl();
 			String printerName = printer.getPrinterDriver();
 			

@@ -99,10 +99,14 @@ public class DasAssortService extends AbstractClassificationService implements I
 	
 	@Override
 	public void batchStartAction(JobBatch batch) {
+		// 1. 작업 설정 셋 추가 
+		this.serviceDispatcher.getConfigSetService().addConfigSet(batch);
+		
+		// 2. 표시기 설정 셋 추가
 		IndConfigSet configSet = batch.getIndConfigSet() != null ? batch.getIndConfigSet() : (ValueUtil.isEmpty(batch.getIndConfigSetId()) ? null : this.queryManager.select(IndConfigSet.class, batch.getIndConfigSetId()));
 		this.indConfigSetService.addConfigSet(batch.getId(), configSet);
 		
-		// 설정에서 작업배치 시에 게이트웨이 리부팅 할 지 여부 조회
+		// 3. 설정에서 작업배치 시에 게이트웨이 리부팅 할 지 여부 조회
 		boolean gwReboot = DasBatchJobConfigUtil.isGwRebootWhenInstruction(batch);
 		
 		if(gwReboot) {
@@ -115,7 +119,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 			}
 		}
 		
-		// 설정에서 작업 지시 시점에 박스 매핑 표시 여부 조회 		
+		// 4. 설정에서 작업 지시 시점에 박스 매핑 표시 여부 조회 		
 		if(DasBatchJobConfigUtil.isIndOnAssignedCellWhenInstruction(batch)) {
 			// 게이트웨이 리부팅 시에는 리부팅 프로세스 완료시까지 약 1분여간 기다린다.
 			if(gwReboot) {
@@ -132,11 +136,17 @@ public class DasAssortService extends AbstractClassificationService implements I
 
 	@Override
 	public void batchCloseAction(JobBatch batch) {
-		// 모든 셀에 남아 있는 잔량에 대해 풀 박싱 여부 조회 		
+		// 1. 모든 셀에 남아 있는 잔량에 대해 풀 박싱 여부 조회 		
 		if(DasBatchJobConfigUtil.isBatchFullboxWhenClosingEnabled(batch)) {
 			// 배치 풀 박싱
 			this.boxService.batchBoxing(batch);
 		}
+		
+		// 2. 표시기 설정 셋 제거
+		this.indConfigSetService.clearConfigSet(batch.getId());
+		
+		// 3. 작업 설정 셋 제거 
+		this.serviceDispatcher.getConfigSetService().clearConfigSet(batch.getId());
 	}
 
 	@Override
