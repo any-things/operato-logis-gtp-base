@@ -86,6 +86,7 @@ public class DasInstructionService extends AbstractQueryService implements IInst
 
 		if(this.beforeInstructBatch(batch, equipCdList)) {
 			instructCount += this.doInstructBatch(batch, equipCdList);
+			this.afterInstructBatch(batch, equipCdList);
 		}
 
 		return instructCount;
@@ -389,6 +390,21 @@ public class DasInstructionService extends AbstractQueryService implements IInst
 		AnyOrmUtil.updateBatch(rackList, 100, "status", "batchId", "jobType");
 		// 7. 결과 건수 리턴
 		return preprocesses.size();
+	}
+	
+	/**
+	 * 작업 지시 후 처리 액션
+	 *
+	 * @param batch
+	 * @param rackList
+	 * @return
+	 */
+	protected boolean afterInstructBatch(JobBatch batch, List<String> equipIdList) {
+		// 1. 배치 시작 액션 처리 
+		this.serviceDispatcher.getAssortService(batch).batchStartAction(batch);
+
+		// 2. ...
+		return true;
 	}
 	
 	/**

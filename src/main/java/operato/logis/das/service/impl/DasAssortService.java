@@ -38,7 +38,9 @@ import xyz.anythings.base.service.impl.AbstractClassificationService;
 import xyz.anythings.base.service.util.BatchJobConfigUtil;
 import xyz.anythings.gw.GwConstants;
 import xyz.anythings.gw.entity.Gateway;
+import xyz.anythings.gw.entity.IndConfigSet;
 import xyz.anythings.gw.entity.Indicator;
+import xyz.anythings.gw.service.IndConfigProfileService;
 import xyz.anythings.gw.service.mq.model.device.DeviceCommand;
 import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.anythings.sys.util.AnyOrmUtil;
@@ -60,7 +62,11 @@ import xyz.elidom.util.ValueUtil;
  */
 @Component("dasAssortService")
 public class DasAssortService extends AbstractClassificationService implements IAssortService {
-
+	/**
+	 * 표시기 설정 프로파일 서비스
+	 */
+	@Autowired
+	private IndConfigProfileService indConfigSetService;
 	/**
 	 * 박스 서비스
 	 */
@@ -87,8 +93,15 @@ public class DasAssortService extends AbstractClassificationService implements I
 		return this.boxService.assignBoxToCell(batch, cellCd, boxId);
 	}
 	
+//	private IndConfigSet getIndConfigSet(String batchId) {
+//		return this.indConfigSetService.getConfigSet(batchId);
+//	}
+	
 	@Override
 	public void batchStartAction(JobBatch batch) {
+		IndConfigSet configSet = batch.getIndConfigSet() != null ? batch.getIndConfigSet() : (ValueUtil.isEmpty(batch.getIndConfigSetId()) ? null : this.queryManager.select(IndConfigSet.class, batch.getIndConfigSetId()));
+		this.indConfigSetService.addConfigSet(batch.getId(), configSet);
+		
 		// 설정에서 작업배치 시에 게이트웨이 리부팅 할 지 여부 조회
 		boolean gwReboot = DasBatchJobConfigUtil.isGwRebootWhenInstruction(batch);
 		
