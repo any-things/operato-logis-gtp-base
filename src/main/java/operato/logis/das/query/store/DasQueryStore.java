@@ -228,15 +228,6 @@ public class DasQueryStore extends AbstractQueryStore {
 	}
 	
 	/**
-	 * Cell 할당을 위한 소팅 쿼리
-	 *
-	 * @return
-	 */
-	public String getCommonCellSortingQuery() {
-		return this.getQueryByPath("etc/CellSorting");
-	}
-	
-	/**
 	 * 중분류 쿼리 
 	 * 
 	 * @return
@@ -288,6 +279,24 @@ public class DasQueryStore extends AbstractQueryStore {
 	 */
 	public String getDasWorkingJobInputListQuery() {
 		return this.getQueryByPath("pick/DasWorkingJobInputList");
+	}
+	
+	/**
+	 * 풀 박스를 위한 주문 정보 조회
+	 * 
+	 * @return
+	 */
+	public String getSearchOrdersForBoxItemsQuery() {
+		return this.getQueryByPath("pick/SearchOrdersForBoxItems");
+	}
+	
+	/**
+	 * Cell 할당을 위한 소팅 쿼리
+	 *
+	 * @return
+	 */
+	public String getCommonCellSortingQuery() {
+		return this.getQueryByPath("etc/CellSorting");
 	}
 
 }

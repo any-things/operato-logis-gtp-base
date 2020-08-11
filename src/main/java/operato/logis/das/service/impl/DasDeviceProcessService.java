@@ -1,5 +1,6 @@
 package operato.logis.das.service.impl;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,8 @@ import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.BoxPack;
 import xyz.anythings.base.entity.Cell;
 import xyz.anythings.base.entity.JobBatch;
+import xyz.anythings.base.entity.JobInput;
+import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.entity.Printer;
 import xyz.anythings.base.event.IClassifyInEvent;
 import xyz.anythings.base.event.classfy.ClassifyInEvent;
@@ -28,8 +31,10 @@ import xyz.anythings.base.service.util.LogisServiceUtil;
 import xyz.anythings.sys.event.model.ErrorEvent;
 import xyz.anythings.sys.event.model.PrintEvent;
 import xyz.anythings.sys.event.model.SysEvent;
+import xyz.anythings.sys.model.BaseResponse;
 import xyz.anythings.sys.service.AbstractExecutionService;
 import xyz.anythings.sys.util.AnyEntityUtil;
+import xyz.elidom.dbist.dml.Page;
 import xyz.elidom.sys.entity.Domain;
 import xyz.elidom.sys.rest.DomainController;
 import xyz.elidom.sys.system.context.DomainContext;
@@ -58,7 +63,71 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 	 */
 	@Autowired
 	private LogisServiceDispatcher serviceDispatcher;
+	/**
+	 * DAS 작업 관련 조회 서비스 
+	 */
+	@Autowired
+	private DasJobStatusService dasJobStatusService;
+
+	/*****************************************************************************************************
+	 * 									 DAS 투입 리스트 화면 A P I
+	 *****************************************************************************************************
+	/**
+	 * DAS 투입 목록 화면 - 해당 호기, 작업 존에 투입한 투입 리스트
+	 * 
+	 * @param event
+	 * @return
+	 */
+	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/input_list', 'DAS')")
+	@Order(Ordered.LOWEST_PRECEDENCE)
+	public void searchInputList(DeviceProcessRestEvent event) {
+		// 1. 파라미터 추출
+		String equipType = event.getRequestParams().get("equipType").toString();
+		String equipCd = event.getRequestParams().get("equipCd").toString();
+		//String stationCd = event.getRequestParams().get("stationCd").toString();
+		String page = event.getRequestParams().get("page").toString();
+		String limit = event.getRequestParams().get("limit").toString();
+		Long domainId = event.getDomainId();
 		
+		// 2. 작업 배치 조회
+		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(domainId, equipType, equipCd);
+		// 3. 호기내 작업 배치 ID로 작업 배치 조회
+		JobBatch batch = equipBatchSet.getBatch();
+		// 4. 투입 정보 조회
+		Page<JobInput> inputPage = this.dasJobStatusService.paginateInputList(batch, equipCd, null, ValueUtil.toInteger(page), ValueUtil.toInteger(limit));
+		// 5. 리턴 결과 설정
+		event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, inputPage));
+		// 6. 이벤트 처리 결과 설정
+		event.setExecuted(true);
+	}
+	
+	/**
+	 * 투입 리스트 중에 하나의 항목 선택시 상세 리스트
+	 * 
+	 * @param event
+	 * @return
+	 */
+	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/input_details', 'DAS')")
+	@Order(Ordered.LOWEST_PRECEDENCE)
+	public void searchInputDetail(DeviceProcessRestEvent event) {
+		// 1. 파라미터 추출
+		Map<String, Object> reqParams = event.getRequestParams();
+		String inputSeqId = reqParams.get("inputSeqId").toString();
+		String stationCd = reqParams.containsKey("stationCd") ? reqParams.get("stationCd").toString() : null;
+		Long domainId = event.getDomainId();
+		
+		// 2. 투입 정보 조회
+		JobInput input = AnyEntityUtil.findEntityById(true, JobInput.class, inputSeqId);
+		// 3. 작업 배치 조회
+		JobBatch batch = LogisServiceUtil.checkB2BBatch(domainId, input.getBatchId());
+		// 4. 투입 정보 상세 조회
+		List<JobInstance> jobInstances = this.dasJobStatusService.searchInputJobList(batch, input, stationCd);
+		// 5. 리턴 결과 설정
+		event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, jobInstances));
+		// 6. 이벤트 처리 결과 설정
+		event.setExecuted(true);
+	}
+	
 	/**
 	 * DAS 표시기를 이용한 검수 처리
 	 *

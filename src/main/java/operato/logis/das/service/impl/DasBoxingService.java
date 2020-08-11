@@ -3,10 +3,11 @@ package operato.logis.das.service.impl;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.StringJoiner;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import operato.logis.das.query.store.DasQueryStore;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.BoxItem;
 import xyz.anythings.base.entity.BoxPack;
@@ -37,6 +38,9 @@ import xyz.elidom.util.ValueUtil;
 @Component("dasBoxingService")
 public class DasBoxingService extends AbstractExecutionService implements IBoxingService {
 
+	@Autowired
+	private DasQueryStore dasQueryStore;
+	
 	@Override
 	public String getJobType() {
 		return LogisConstants.JOB_TYPE_DAS;
@@ -83,7 +87,7 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 				
 		// 2. 작업 WorkCell 조회
 		Long domainId = batch.getDomainId();
-		WorkCell workCell = AnyEntityUtil.findEntityBy(domainId, true, WorkCell.class, null, "domainId,batchId,cellCd", domainId, batch.getId(), cellCd);
+		WorkCell workCell = AnyEntityUtil.findEntityBy(domainId, true, WorkCell.class, null, "batchId,cellCd", batch.getId(), cellCd);
 		workCell.setBoxId(boxId);
 		
 		// 3. 셀에 처리할 작업 인스턴스 정보 조회
@@ -94,7 +98,7 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 		condition.addFilter("status", LogisConstants.JOB_STATUS_WAIT);
 		JobInstance job = this.queryManager.selectByCondition(JobInstance.class, condition);
 		
-		// 4. 작업 인스턴스에 피킹 진행 중인 수량이 있다면 박스 매핑 안 됨. 
+		// 4. 작업 인스턴스에 피킹 진행 중인 수량이 있다면 박스 매핑 안 됨.
 		if(job == null) {
 			// 셀에 박싱 처리할 작업이 없습니다.
 			throw ThrowUtil.newValidationErrorWithNoLog(true, "NO_JOBS_FOR_BOXING");
@@ -107,7 +111,7 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 	@Override
 	public Object resetBoxToCell(JobBatch batch, String cellCd, Object... params) {
 		// 작업 WorkCell 조회 후 BoxId를 클리어 
-		WorkCell cell = AnyEntityUtil.findEntityBy(batch.getDomainId(), true, WorkCell.class, "domainId,batchId,cellCd", batch.getDomainId(), batch.getId(), cellCd);
+		WorkCell cell = AnyEntityUtil.findEntityBy(batch.getDomainId(), true, WorkCell.class, "batchId,cellCd", batch.getId(), cellCd);
 		cell.setBoxId(null);
 		this.queryManager.update(cell, "boxId", "updatedAt");
 		return cell;
@@ -148,7 +152,7 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 	}
 
 	@Override
-	public List<BoxPack> batchBoxing(JobBatch batch) {		
+	public List<BoxPack> batchBoxing(JobBatch batch) {
 		// 1. 작업 셀 리스트 조회
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		condition.addFilter("batchId", batch.getId());
@@ -199,6 +203,8 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 	 * @return
 	 */
 	private BoxPack createNewBoxPack(JobBatch batch, List<JobInstance> jobList, WorkCell cell) {
+		// 박스 시퀀스 
+		int newBoxSeq = this.newBoxSeq(jobList.get(0));
 		// 박스 별 상품 수
 		Long skuCnt = jobList.stream().map(job -> job.getSkuCd()).distinct().count();
 		// 피킹 수량 합계
@@ -211,12 +217,26 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 		boxPack.setSkuQty(skuCnt.intValue());
 		boxPack.setPickQty(pickedQty);
 		boxPack.setPickedQty(pickedQty);
+		boxPack.setBoxSeq(newBoxSeq);
 		boxPack.setCreatorId(null);
 		boxPack.setUpdaterId(null);
 		boxPack.setCreatedAt(null);
 		boxPack.setUpdatedAt(null);
 		this.queryManager.insert(boxPack);
 		return boxPack;
+	}
+	
+	/**
+	 * 박스의 maxSeq 조회
+	 * 
+	 * @param job
+	 * @return
+	 */
+	private int newBoxSeq(JobInstance job) {
+		String sql = "select max(box_seq) as box_seq from box_packs where domain_id = :domainId and batch_id = :batchId and sub_equip_cd = :subEquipCd";
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,subEquipCd", job.getDomainId(), job.getBatchId(), job.getSubEquipCd());
+		Integer boxSeq = this.queryManager.selectBySql(sql, params, Integer.class);
+		return (boxSeq == null) ? 1 : boxSeq + 1;
 	}
 
 	/**
@@ -261,18 +281,9 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 	 * @return
 	 */
 	private List<Order> searchOrdersForBoxItems(JobInstance job) {
-		StringJoiner sql = new StringJoiner(SysConstants.LINE_SEPARATOR);
-		sql.add("SELECT")
-		   .add("	ID, DOMAIN_ID, '" + job.getBoxPackId() + "' AS BOX_PACK_ID, ORDER_NO, ORDER_LINE_NO, ORDER_DETAIL_ID, COM_CD, CLASS_CD, SHOP_CD, SKU_CD, SKU_NM, PACK_TYPE, ORDER_QTY, (PICKED_QTY - NVL(BOXED_QTY, 0)) AS PICKED_QTY, NVL(BOXED_QTY, 0) AS BOXED_QTY")
-		   .add("FROM")
-		   .add("	ORDERS")
-		   .add("WHERE")
-		   .add("	DOMAIN_ID = :domainId AND BATCH_ID = :batchId AND COM_CD = :comCd AND CLASS_CD = :classCd AND PICKED_QTY > 0 AND (BOXED_QTY IS NULL OR PICKED_QTY > BOXED_QTY)")
-		   .add("ORDER BY")
-		   .add("	ORDER_NO ASC, ORDER_LINE_NO ASC, SKU_CD ASC, ORDER_QTY DESC");
-
+		String sql = this.dasQueryStore.getSearchOrdersForBoxItemsQuery();
 		Map<String, Object> params = 
-				ValueUtil.newMap("domainId,batchId,comCd,classCd", job.getDomainId(), job.getBatchId(), job.getComCd(), job.getClassCd());
+				ValueUtil.newMap("domainId,batchId,comCd,classCd,boxPackId", job.getDomainId(), job.getBatchId(), job.getComCd(), job.getClassCd(), job.getBoxPackId());
 		return this.queryManager.selectListBySql(sql.toString(), params, Order.class, 0, 0);
 	}
 
