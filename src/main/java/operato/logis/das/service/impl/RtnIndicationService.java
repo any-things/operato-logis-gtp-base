@@ -78,7 +78,7 @@ public class RtnIndicationService extends AbstractLogisService implements IDasIn
 	}
 
 	@Override
-	public List<JobInstance> searchJobsForIndOn(JobBatch batch, Map<String, Object> condition) {		
+	public List<JobInstance> searchJobsForIndOn(JobBatch batch, Map<String, Object> condition) {
 		return this.serviceDispatcher.getJobStatusService(batch).searchPickingJobList(batch, condition);
 	}
 	
@@ -180,6 +180,17 @@ public class RtnIndicationService extends AbstractLogisService implements IDasIn
 			}
 		}
 	}
+	
+	@Override
+	public void indicatorListOff(JobBatch batch, String stationCd) {
+		Long domainId = batch.getDomainId();
+		IIndRequestService indReqSvc = this.indicatorDispatcher.getIndicatorRequestServiceByStage(domainId, batch.getStageCd());
+		List<IndCommonReq> indCdList = IndicatorQueryUtil.searchPickingIndList(domainId, batch.getId(), stationCd);
+		
+		if(ValueUtil.isNotEmpty(indCdList)) {
+			indReqSvc.requestIndListOff(domainId, batch.getStageCd(), indCdList, true);
+		}
+	}
 
 	@Override
 	public void indicatorOff(Long domainId, String stageCd, String gwPath, String indCd) {
@@ -275,7 +286,7 @@ public class RtnIndicationService extends AbstractLogisService implements IDasIn
 	public void indicatorsOnByInput(JobBatch batch, JobInput input, List<JobInstance> jobList) {
 		IIndRequestService indReqSvc = this.getIndicatorRequestService(batch);
 		Map<String, List<IIndOnInfo>> indOnForPickList = RuntimeIndServiceUtil.buildIndOnList(true, batch, jobList, true);
-		indReqSvc.requestIndListOn(batch.getDomainId(), batch.getStageCd(), batch.getJobType(), GwConstants.IND_ACTION_TYPE_PICK, indOnForPickList);		
+		indReqSvc.requestIndListOn(batch.getDomainId(), batch.getStageCd(), batch.getJobType(), GwConstants.IND_ACTION_TYPE_PICK, indOnForPickList);
 	}
 
 	@Override
@@ -339,7 +350,7 @@ public class RtnIndicationService extends AbstractLogisService implements IDasIn
 		if(indicator != null) {
 			job.setIndCd(indicator.getIndCd());
 			job.setGwPath(indicator.getGwPath());
-		}		
+		}
 	}
 
 }
