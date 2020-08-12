@@ -34,38 +34,44 @@ public class DasJobStatusService extends AbstractJobStatusService {
 		// 태블릿의 현재 투입 정보 기준으로 2, 1 (next), 0 (current), -1 (previous) 정보를 표시
 		Long domainId = batch.getDomainId();
 		String sql = this.dasQueryStore.getDasFindStationWorkingInputSeq();
-		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,stationCd,status", domainId, batch.getId(), stationCd, JobInput.INPUT_STATUS_RUNNING);
-		Integer inputSeq = null;
 		
-		if(ValueUtil.isEmpty(selectedInputId)) {
-			// 해당 스테이션에 존재하는 진행 중인 투입 시퀀스를 중심으로 조회
+		// 해당 스테이션에 존재하는 피킹 중인 가장 작은 시퀀스를 조회
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,stationCd,jobStatus", domainId, batch.getId(), stationCd, LogisConstants.JOB_STATUS_PICKING);
+		Integer inputSeq = this.queryManager.selectBySql(sql, params, Integer.class);
+		
+		// 없다면 해당 스테이션에 존재하는 투입 중인 가장 작은 시퀀스를 조회
+		if(inputSeq == null || inputSeq < 0) {
+			params.put("jobStatus", LogisConstants.JOB_STATUS_INPUT);
 			inputSeq = this.queryManager.selectBySql(sql, params, Integer.class);
-			
-			if(inputSeq == null) {
-				params.remove("status");
-				inputSeq = this.queryManager.selectBySql(sql, params, Integer.class);
-			}
-		} else {
-			// selectedInputId로 투입 시퀀스 조회
-			inputSeq = this.queryManager.selectBySql(sql, ValueUtil.newMap("domainId,id", domainId, selectedInputId), Integer.class);
 		}
 		
+		// 없다면 선택된 투입 ID를 중심으로 조회
+		if((inputSeq == null || inputSeq < 0) && ValueUtil.isNotEmpty(selectedInputId)) {
+			inputSeq = this.queryManager.selectBySql(sql, ValueUtil.newMap("domainId,jobInputId", domainId, selectedInputId), Integer.class);
+		}
+		
+		// 그래도 없다면 해당 스테이션의 마지막 4개 투입 정보 조회
 		if(inputSeq == null || inputSeq < 1) {
-			return null;
+			params.put("lastFour", true);
+		// 투입 순서로 작업을 위한 투입 리스트 조회
+		} else {
+			params.put("inputSeq", inputSeq);
 		}
 		
-		// inputSeq로 작업을 위한 투입 리스트 조회
-		params.remove("status");
-		params.put("inputSeq", inputSeq);
 		sql = this.dasQueryStore.getDasWorkingJobInputListQuery();
 		return this.queryManager.selectListBySql(sql, params, JobInput.class, 0, 0);
 	}
 
 	@Override
 	public Page<JobInput> paginateInputList(JobBatch batch, String equipCd, String status, int page, int limit) {
+		return this.paginateInputList(batch, equipCd, null, status, page, limit);
+	}
+	
+	@Override
+	public Page<JobInput> paginateInputList(JobBatch batch, String equipCd, String stationCd, String status, int page, int limit) {
 		String sql = this.dasQueryStore.getDasBatchJobInputListQuery();
-		List<String> statuses = (ValueUtil.isNotEmpty(status) && ValueUtil.isEqualIgnoreCase(status, "U")) ? LogisConstants.JOB_STATUS_WIPC : null;
-		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,equipCd,statuses", batch.getDomainId(), batch.getId(), equipCd, statuses);
+		status = ValueUtil.isEmpty(status) ? null : status;
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,equipCd,stationCd,status", batch.getDomainId(), batch.getId(), equipCd, stationCd, status);
 		return this.queryManager.selectPageBySql(sql.toString(), params, JobInput.class, page, limit);
 	}
 

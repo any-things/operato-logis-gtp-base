@@ -1,24 +1,18 @@
-select 
-	input_seq 
-from (
-	select 
-		input_seq 
-	from 
-		job_inputs 
-	where 
-		domain_id = :domainId
-		#if($id)
-		and id = :id
-		#end
-		#if($batchId)
-		and batch_id = :batchId
-		#end
-		#if($stationCd)
-		and station_cd = :stationCd
-		#end
-		#if($status)
-		and status = :status
-		#end 
-	order by 
-		input_seq asc) x
-limit 1
+SELECT
+	MIN(INPUT_SEQ)
+FROM
+	JOB_INSTANCES
+WHERE
+	DOMAIN_ID = :domainId
+	#if($batchId)
+	AND BATCH_ID = :batchId
+	#end
+	#if($jobInputId)
+	AND INPUT_SEQ = (SELECT INPUT_SEQ FROM JOB_INPUTS WHERE DOMAIN_ID = :domainId AND ID = :jobInputId)
+	#else
+	AND INPUT_SEQ > 0
+	#end
+	#if($stationCd)
+	AND SUB_EQUIP_CD IN (SELECT CELL_CD FROM CELLS WHERE DOMAIN_ID = :domainId AND STATION_CD = :stationCd)
+	#end
+	AND STATUS = :jobStatus

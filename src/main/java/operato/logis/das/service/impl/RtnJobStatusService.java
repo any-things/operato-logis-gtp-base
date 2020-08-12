@@ -40,6 +40,12 @@ public class RtnJobStatusService extends AbstractJobStatusService {
 		// TODO Auto-generated method stub
 		return null;
 	}
+	
+	@Override
+	public Page<JobInput> paginateInputList(JobBatch batch, String equipCd, String stationCd, String status, int page, int limit) {
+		// TODO Auto-generated method stub
+		return null;
+	}
 
 	@Override
 	public List<JobInstance> searchInputJobList(JobBatch batch, JobInput input, String stationCd) {

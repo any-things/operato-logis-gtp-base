@@ -440,7 +440,8 @@ public class DasAssortService extends AbstractClassificationService implements I
 		}
 		
 		// 3. 남은 수량 표시기 점등
-		this.serviceDispatcher.getIndicationService(job).indicatorOnForPick(job, 0, job.getPickingQty(), 0);
+		// this.serviceDispatcher.getIndicationService(job).indicatorOnForPick(job, 0, job.getPickingQty(), 0); --> TODO 체크 표시기에 B,P 모드로 내려감 확인 필요
+		this.serviceDispatcher.getIndicationService(job).indicatorsOn(exeEvent.getJobBatch(), false, ValueUtil.toList(job));
 		// 4. 태블릿 피킹 화면 리프레쉬
 		this.sendMessageToMobileDevice(exeEvent.getJobBatch(), null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
 		// 5. 조정 수량 리턴 
@@ -487,29 +488,38 @@ public class DasAssortService extends AbstractClassificationService implements I
 	@EventListener(classes = IClassifyOutEvent.class, condition = "#outEvent.jobType == 'DAS'")
 	@Override
 	public BoxPack fullBoxing(IClassifyOutEvent outEvent) {
-		// 1. 작업 데이터 추출
-		JobInstance job = outEvent.getJobInstance();
+		// 1. 풀 박스 처리해야 할 작업 리스트 조회
+		JobBatch batch = outEvent.getJobBatch();
+		// 2. 작업 셀 추출
+		WorkCell workCell = outEvent.getWorkCell();
 		
-		// 2. 풀 박스 체크
-		if(ValueUtil.isEqualIgnoreCase(LogisConstants.JOB_STATUS_BOXED, job.getStatus())) {
+		// 3. 작업 배치가 null이면 조회
+		if(batch == null) {
+			String sql = "select * from job_batches where domain_id = :domainId and status = 'RUN' and equip_cd in (select distinct equip_cd from cells where domain_id = :domainId and cell_cd = :cellCd)";
+			Map<String, Object> bParams = ValueUtil.newMap("domainId,cellCd", outEvent.getDomainId(), workCell.getCellCd());
+			batch = this.queryManager.selectBySql(sql, bParams, JobBatch.class);
+		}
+		
+		// 4. WorkCell의 셀 번호로 부터 완료된 작업 리스트 조회
+		Map<String, Object> params = ValueUtil.newMap("subEquipCd,status", workCell.getCellCd(), LogisConstants.JOB_STATUS_FINISH);
+		List<JobInstance> jobList = this.serviceDispatcher.getJobStatusService(batch).searchJobList(batch, params);
+		
+//		// 5. 풀 박스 체크
+		if(ValueUtil.isEmpty(jobList)) {
 			// 이미 처리된 항목입니다. --> "작업[" + job.getId() + "]은 이미 풀 박스가 완료되었습니다."
 			String msg = MessageUtil.getMessage("ALREADY_BEEN_PROCEEDED", "Already been proceeded.");
 			throw new ElidomRuntimeException(msg);
 		}
+
+		// 6. 풀 박스 처리 
+		BoxPack boxPack = this.boxService.fullBoxing(batch, workCell, jobList, this);
 		
-		// 3. 풀 박스 처리해야 할 작업 리스트 조회
-		JobBatch batch = outEvent.getJobBatch();
-		Map<String, Object> params = ValueUtil.newMap("classCd,subEquipCd,status", job.getClassCd(), job.getSubEquipCd(), LogisConstants.JOB_STATUS_FINISH);
-		List<JobInstance> jobList = this.serviceDispatcher.getJobStatusService(batch).searchJobList(batch, params);
-		
-		// 4. 풀 박스 처리 
-		BoxPack boxPack = this.boxService.fullBoxing(outEvent.getJobBatch(), outEvent.getWorkCell(), jobList, this);
-		
-		// 5. 다음 작업 처리
+		// 7. 다음 작업 처리
 		if(boxPack != null) {
-			this.doNextJob(batch, job, outEvent.getWorkCell(), true);
+			// 다음 작업 처리 
+			this.doNextJob(batch, jobList.get(0), workCell, true);
 			
-			// 6. 태블릿 피킹 화면 리프레쉬
+			// 태블릿 피킹 화면 리프레쉬
 			this.sendMessageToMobileDevice(outEvent.getJobBatch(), null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
 		}
 		
@@ -585,7 +595,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 	public boolean checkStationJobsEnd(JobInstance job, String stationCd) {
 		// 릴레이 처리를 위해 작업 스테이션에서 작업이 끝났는지 체크 ...
 		String sql = this.dasQueryStore.getSearchPickingJobListQuery();
-		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,classCd,stationCd,inputSeq,statuses", job.getDomainId(), job.getBatchId(), job.getClassCd(), stationCd, job.getInputSeq(), LogisConstants.JOB_STATUS_WIP);
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,stationCd,inputSeq,statuses", job.getDomainId(), job.getBatchId(), stationCd, job.getInputSeq(), LogisConstants.JOB_STATUS_WIP);
 		return this.queryManager.selectSizeBySql(sql, params) == 0;
 	}
 	
@@ -597,7 +607,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 	 */
 	private boolean checkSkuInputEnd(JobInstance job) {
 		String sql = this.dasQueryStore.getSearchPickingJobListQuery();
-		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,classCd,inputSeq,statuses", job.getDomainId(), job.getBatchId(), job.getClassCd(), job.getInputSeq(), LogisConstants.JOB_STATUS_WIP);
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,inputSeq,statuses", job.getDomainId(), job.getBatchId(), job.getInputSeq(), LogisConstants.JOB_STATUS_WIP);
 		return this.queryManager.selectSizeBySql(sql, params) == 0;
 	}
 
