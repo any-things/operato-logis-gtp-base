@@ -321,7 +321,7 @@ public class DasIndicationService extends AbstractLogisService implements IDasIn
 		String[] rotations = BatchIndConfigUtil.getIndColorRotations(job.getBatchId());
 		if(ValueUtil.isNotEmpty(rotations)) {
 			int colorIdx = Arrays.asList(rotations).indexOf(prevColor);
-			colorIdx = (colorIdx >= rotations.length) ? 0 : colorIdx + 1;
+			colorIdx = (colorIdx >= rotations.length - 1) ? 0 : colorIdx + 1;
 			return rotations[colorIdx];
 		} else {
 			return BatchIndConfigUtil.getDasJobColor(job.getBatchId());

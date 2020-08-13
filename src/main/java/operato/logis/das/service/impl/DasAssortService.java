@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -19,6 +20,7 @@ import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.JobInput;
 import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.entity.Order;
+import xyz.anythings.base.entity.Rack;
 import xyz.anythings.base.entity.SKU;
 import xyz.anythings.base.entity.WorkCell;
 import xyz.anythings.base.event.ICategorizeEvent;
@@ -35,12 +37,14 @@ import xyz.anythings.base.query.store.IndicatorQueryStore;
 import xyz.anythings.base.service.api.IAssortService;
 import xyz.anythings.base.service.api.IBoxingService;
 import xyz.anythings.base.service.api.IIndicationService;
+import xyz.anythings.base.service.api.IJobStatusService;
 import xyz.anythings.base.service.impl.AbstractClassificationService;
 import xyz.anythings.base.service.util.BatchJobConfigUtil;
 import xyz.anythings.gw.GwConstants;
 import xyz.anythings.gw.entity.Gateway;
 import xyz.anythings.gw.entity.IndConfigSet;
 import xyz.anythings.gw.entity.Indicator;
+import xyz.anythings.gw.event.GatewayInitEvent;
 import xyz.anythings.gw.service.IndConfigProfileService;
 import xyz.anythings.gw.service.mq.model.device.DeviceCommand;
 import xyz.anythings.sys.util.AnyEntityUtil;
@@ -102,6 +106,78 @@ public class DasAssortService extends AbstractClassificationService implements I
 //	private IndConfigSet getIndConfigSet(String batchId) {
 //		return this.indConfigSetService.getConfigSet(batchId);
 //	}
+	
+	@EventListener(classes = GatewayInitEvent.class, condition = "#gwInitEvent.eventStep == 2")
+	public void handleGatewayInitReport(GatewayInitEvent gwInitEvent) {
+		// Gateway 정보 추출
+		Gateway gateway = gwInitEvent.getGateway();
+		
+		if(gateway != null) {
+			// 1. Gateway 정보로 호기 리스트 추출
+			Long domainId = gwInitEvent.getDomainId();
+			String sql = "select rack_cd, batch_id from racks where domain_id = :domainId and job_type = :jobType and rack_cd in (select distinct(equip_cd) as equip_cd from cells where domain_id = :domainId and ind_cd in (select ind_cd from indicators where domain_id = :domainId and gw_cd = :gwCd) order by equip_cd)";
+			List<Rack> rackList = this.queryManager.selectListBySql(sql, ValueUtil.newMap("domainId,jobType,gwCd", domainId, LogisConstants.JOB_TYPE_DAS, gateway.getGwCd()), Rack.class, 0, 0);
+			
+			// 2. 호기로 부터 현재 작업 중인 배치 추출 
+			for(Rack rack : rackList) {
+				// 2-1. 호기 체크
+				if(ValueUtil.isEmpty(rack.getBatchId())) {
+					continue;
+				}
+				
+				// 2-2. 작업 배치 및 상태 체크
+				JobBatch batch = AnyEntityUtil.findEntityById(false, JobBatch.class, rack.getBatchId());
+				
+				if(batch == null || ValueUtil.isNotEqual(batch.getStatus(), JobBatch.STATUS_RUNNING)) {
+					continue;
+				}
+				
+				// 2-3. 호기 코드, 게이트웨이 코드로 표시기 이전 상태 복원
+				this.restoreMpiOn(batch, gateway, rack.getRackCd());
+			}
+		}
+	}
+	
+	/**
+	 * 작업 배치, 게이트웨이, 호기별로 이전 작업 리스트 표시기 점등
+	 * 
+	 * @param batch
+	 * @param gw
+	 * @param rackCd
+	 */
+	public void restoreMpiOn(JobBatch batch, Gateway gw, String rackCd) {
+		if(ValueUtil.isEqual(batch.getStatus(), JobBatch.STATUS_RUNNING)) {
+			// 1. 해당 호기의 모든 작업 존 조회
+			Long domainId = batch.getDomainId();
+			String sql = "select distinct station_cd from cells where domain_id = :domainId and equip_cd = :equipCd order by station_cd";
+			List<String> stationList = this.queryManager.selectListBySql(sql, ValueUtil.newMap("domainId,equipCd", domainId, rackCd), String.class, 0, 0);
+			IJobStatusService jobStatusSvc = this.serviceDispatcher.getJobStatusService(batch);
+			IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
+			sql = this.dasQueryStore.getDasFindStationWorkingInputSeq();
+			Map<String, Object> params = ValueUtil.newMap("domainId,batchId,jobStatus,status", domainId, batch.getId(), LogisConstants.JOB_STATUS_PICKING, LogisConstants.JOB_STATUS_PICKING);
+			
+			// 2. 추출한 작업 존별로 가장 작은 투입 순서에 피킹 중인 작업 리스트 조회
+			for(String stationCd : stationList) {
+				params.put("stationCd", stationCd);
+				Integer inputSeq = this.queryManager.selectBySql(sql, params, Integer.class);
+				
+				if(inputSeq != null && inputSeq > 0) {
+					// 3. 배치, 작업 존, 투입 순서, 상태로 작업 리스트 조회
+					params.put("inputSeq", inputSeq);
+					List<JobInstance> jobList = jobStatusSvc.searchPickingJobList(batch, params);
+					
+					// 4. 추출한 작업 리스트에 대해서 표시기 점등
+					indSvc.indicatorsOn(batch, true, jobList);
+					
+					// TODO 아래 API로 수정 
+					// indSvc.restoreIndicatorsOn(JobBatch batch, int inputSeq, String equipZone, String mode)
+					// TODO 게이트웨이 소속 로케이션에 대해서 작업이 존재하고 작업이 모두 완료된 경우 FULLBOX, END 표시를 한다.
+				}
+				
+				ThreadUtil.sleep(10);
+			}
+		}
+	}
 	
 	@Override
 	public void batchStartAction(JobBatch batch) {
@@ -210,12 +286,12 @@ public class DasAssortService extends AbstractClassificationService implements I
 	}
 
 	@Override
-	public Object input(IClassifyInEvent inputEvent) { 
+	public Object input(IClassifyInEvent inputEvent) {
 		return this.inputSkuSingle(inputEvent);
 	} 
 	
 	@EventListener(classes = ClassifyRunEvent.class, condition = "#exeEvent.jobType == 'DAS'")
-	public Object classify(IClassifyRunEvent exeEvent) { 
+	public Object classify(IClassifyRunEvent exeEvent) {
 		String classifyAction = exeEvent.getClassifyAction();
 		JobInstance job = exeEvent.getJobInstance();
 		
@@ -343,7 +419,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		// 수량 기반 표시기 점등 모드로 상품 투입
 		} else {
 			return this.indOnByQtyMode(inputEvent);
-		}		
+		}
 	}
 
 	@Override
@@ -365,7 +441,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 				  .add("[" + unpickJob.getSkuNm() + "]")
 				  .add("[" + unpickJob.getPickQty() + "/" + unpickJob.getPickedQty() + "]");
 			throw ThrowUtil.newValidationErrorWithNoLog(buffer.toString());
-		}		
+		}
 		
 		// 3. 투입할 작업 리스트가 없고 투입된 내역이 없다면 에러
 		if(inputSeq == -1) {
@@ -403,6 +479,12 @@ public class DasAssortService extends AbstractClassificationService implements I
 		// 4. 릴레이 처리 후 넘어오는 값에 따라 리프레쉬 모드 변경 (주문 전체 완료 [order-end] : COMMAND_REFRESH, 해당 작업 존 완료 [zone-end] : COMMAND_REFRESH, 피킹 완료 [pick-end] : COMMAND_REFRESH_DETAILS)
 		String refreshMode = (ValueUtil.isEmpty(endMode) || ValueUtil.isEqualIgnoreCase(endMode, "pick-end")) ? DeviceCommand.COMMAND_REFRESH_DETAILS : DeviceCommand.COMMAND_REFRESH;
 		this.sendMessageToMobileDevice(batch, null, null, "info", refreshMode);
+		
+		// 5. 태블릿 등 모바일 장비에서 작업 완료 처리시 표시기 소등 처리
+		if(ValueUtil.isNotEqual(exeEvent.getClassifyDevice(), Indicator.class.getSimpleName())) {
+			String pickQtyStr = this.toIndicatorStr(resQty);
+			this.serviceDispatcher.getIndicationService(job).displayForString(batch.getDomainId(), batch.getId(), batch.getStageCd(), batch.getJobType(), job.getIndCd(), pickQtyStr);
+		}
 	}
 
 	@Override
@@ -425,6 +507,12 @@ public class DasAssortService extends AbstractClassificationService implements I
 		this.doNextJob(batch, job, exeEvent.getWorkCell(), false);
 		// 4. 리프레쉬 모드
 		this.sendMessageToMobileDevice(batch, null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
+		
+		// 5. 태블릿 등 모바일 장비에서 작업 완료 처리시 표시기 소등 처리
+		if(ValueUtil.isNotEqual(exeEvent.getClassifyDevice(), Indicator.class.getSimpleName())) {
+			String pickQtyStr = this.toIndicatorStr(0);
+			this.serviceDispatcher.getIndicationService(job).displayForString(batch.getDomainId(), batch.getId(), batch.getStageCd(), batch.getJobType(), job.getIndCd(), pickQtyStr);
+		}
 	}
 
 	@Override
@@ -658,7 +746,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 				AnyEntityUtil.findEntityBy(errorEvent.getDomainId(), false, String.class, "stationCd", "domainId,cellCd", errorEvent.getDomainId(), cellCd) : null;
 			
 			String errMsg = (th.getCause() == null) ? th.getMessage() : th.getCause().getMessage();
-			this.sendMessageToMobileDevice(errorEvent.getJobBatch(), isIndicatorDevice ? null : device, stationCd, "error", errMsg);			
+			this.sendMessageToMobileDevice(errorEvent.getJobBatch(), isIndicatorDevice ? null : device, stationCd, "error", errMsg);
 		}
 
 		// 5. 예외 발생
@@ -759,12 +847,24 @@ public class DasAssortService extends AbstractClassificationService implements I
 		newInput.setInputSeq(nextInputSeq);
 		newInput.setComCd(comCd);
 		newInput.setSkuCd(skuCd);
-		// TODO 투입 유형을 설정에서 조회해서 혹은 화면에서 직접 넘겨주기 ...
-		newInput.setInputType(LogisCodeConstants.JOB_INPUT_TYPE_PCS);
+
+		// 투입 유형을 설정에서 조회해서 혹은 화면에서 직접 넘겨주기 ...
+		if(DasBatchJobConfigUtil.isSingleSkuInputEnabled(batch)) {
+			newInput.setInputType(LogisCodeConstants.JOB_INPUT_TYPE_PCS);
+		} else if(DasBatchJobConfigUtil.isSingleBoxInputEnabled(batch)) {
+			newInput.setInputType(LogisCodeConstants.JOB_INPUT_TYPE_BOX);
+		} else if(DasBatchJobConfigUtil.isBundleInputEnabled(batch)) {
+			newInput.setInputType(LogisCodeConstants.JOB_INPUT_TYPE_BUNDLE);
+		} else {
+			newInput.setInputType(LogisCodeConstants.JOB_INPUT_TYPE_PCS);
+		}
+		
 		newInput.setInputQty(classCnt.intValue());
 		newInput.setStatus(JobInput.INPUT_STATUS_WAIT);
+		
 		// 이전 투입에 대한 컬러 조회
 		IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
+		firstJob.setInputSeq(nextInputSeq);
 		String prevColor = indSvc.prevIndicatorColor(firstJob);
 		String currentColor = indSvc.nextIndicatorColor(firstJob, prevColor);
 		newInput.setColorCd(currentColor);
@@ -962,4 +1062,13 @@ public class DasAssortService extends AbstractClassificationService implements I
 		}
 	}
 
+	/**
+	 * 표시기에 표시할 수량을 문자로 표현 
+	 * 
+	 * @param qty
+	 * @return
+	 */
+	private String toIndicatorStr(int qty) {
+		return StringUtils.leftPad(ValueUtil.toString(qty), 6);
+	}
 }

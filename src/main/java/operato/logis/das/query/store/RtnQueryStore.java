@@ -228,21 +228,75 @@ public class RtnQueryStore extends AbstractQueryStore {
 	}
 	
 	/**
-	 * Cell 할당을 위한 소팅 쿼리
-	 *
-	 * @return
-	 */
-	public String getCommonCellSortingQuery() {
-		return this.getQueryByPath("etc/CellSorting");
-	}
-
-	/**
 	 * 중분류 쿼리 
 	 * 
 	 * @return
 	 */
 	public String getRtnCategorizationQuery() {
 		return this.getQueryByPath("pick/RtnCategorization");
+	}
+	
+	/**
+	 * 투입한 상품 코드로 투입 시퀀스를 조회
+	 * 
+	 * @return
+	 */
+	public String getRtnFindInputSeqBySkuQuery() {
+		return this.getQueryByPath("pick/DasInputSeqBySku");
+	}
+
+	/**
+	 * 작업 배치내에 피킹(표시기 점등) 중인 작업이 있는 작업 스테이션 리스트를 조회
+	 * 
+	 * @return
+	 */
+	public String getRtnSearchWorkingStationQuery() {
+		return this.getQueryByPath("pick/DasSearchWorkingStation");
+	}
+	
+	/**
+	 * 작업 배치내에 작업 중인 투입 리스트 조회 (For KIOSK)
+	 * 
+	 * @return
+	 */
+	public String getRtnBatchJobInputListQuery() {
+		return this.getQueryByPath("pick/DasBatchJobInputList");
+	}
+	
+	/**
+	 * 작업 스테이션 내에 투입 리스트 조회를 위한 기준 시퀀스를 조회한다. (For Tablet)
+	 * 
+	 * @return
+	 */
+	public String getRtnFindStationWorkingInputSeq() {
+		return this.getQueryByPath("pick/DasFindStationWorkingInputSeq");
+	}
+	
+	/**
+	 * 작업 배치내에 작업 중인 투입 리스트 조회 (For Tablet)
+	 * 
+	 * @return
+	 */
+	public String getRtnWorkingJobInputListQuery() {
+		return this.getQueryByPath("pick/DasWorkingJobInputList");
+	}
+	
+	/**
+	 * 풀 박스를 위한 주문 정보 조회
+	 * 
+	 * @return
+	 */
+	public String getSearchOrdersForBoxItemsQuery() {
+		return this.getQueryByPath("pick/SearchOrdersForBoxItems");
+	}
+	
+	/**
+	 * Cell 할당을 위한 소팅 쿼리
+	 *
+	 * @return
+	 */
+	public String getCommonCellSortingQuery() {
+		return this.getQueryByPath("etc/CellSorting");
 	}
 
 }
