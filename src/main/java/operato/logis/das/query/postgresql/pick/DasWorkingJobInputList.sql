@@ -24,11 +24,6 @@ FROM (
 	GROUP BY
 		I.ID, I.INPUT_SEQ, I.SKU_CD, J.SKU_NM, I.COLOR_CD, I.INPUT_QTY
 	ORDER BY
-		I.INPUT_SEQ
-		#if($lastFour)
-		DESC
-		#else
-		ASC
-		#end
+		I.INPUT_SEQ DESC
 ) A
 	LIMIT 4
