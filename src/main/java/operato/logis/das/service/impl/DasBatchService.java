@@ -74,7 +74,7 @@ public class DasBatchService extends AbstractLogisService implements IBatchServi
 
 		// 6. batchId별 작업 실행 데이터 중에 완료되지 않은 것이 있는지 체크
 		if(!closeForcibly) {
-			condition.addFilter("status", OrmConstants.IN, LogisConstants.JOB_STATUS_WIPC);		 
+			condition.addFilter("status", OrmConstants.IN, LogisConstants.JOB_STATUS_WIPC);
 			if(this.queryManager.selectSize(JobInstance.class, condition) > 0) {
 				// {0} 등 {1}개의 호기에서 작업이 끝나지 않았습니다.
 				String msg = MessageUtil.getMessage("ASSORTING_NOT_FINISHED_IN_RACKS", "{0} 등 {1}개의 호기에서 작업이 끝나지 않았습니다.", ValueUtil.toList(batch.getEquipCd(), "1"));
@@ -139,8 +139,8 @@ public class DasBatchService extends AbstractLogisService implements IBatchServi
 	 */
 	protected void resetRacksAndCells(JobBatch batch) {
 		Map<String, Object> params = ValueUtil.newMap("domainId,equipCd,batchId", batch.getDomainId(), batch.getEquipCd(), batch.getId());
-	  	this.queryManager.executeBySql("UPDATE RACKS SET STATUS = null, BATCH_ID = null WHERE DOMAIN_ID = :domainId AND RACK_CD = :equipCd", params);
-	  	this.queryManager.executeBySql("DELETE FROM WORK_CELLS WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId", params);
+		this.queryManager.executeBySql("UPDATE RACKS SET STATUS = null, BATCH_ID = null WHERE DOMAIN_ID = :domainId AND RACK_CD = :equipCd", params);
+		this.queryManager.executeBySql("DELETE FROM WORK_CELLS WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId", params);
 	}
 	
 	/**
@@ -166,14 +166,15 @@ public class DasBatchService extends AbstractLogisService implements IBatchServi
 		BatchProgressRate finalResult = this.queryManager.selectBySql(query, params, BatchProgressRate.class);
 		
 		// 작업 배치에 최종 결과 업데이트
-		batch.setResultOrderQty(finalResult.getActualOrder());
 		batch.setResultPcs(finalResult.getActualPcs());
-		batch.setUph(finalResult.getUph()); 
-		batch.setProgressRate(finalResult.getRatePcs());
+		batch.setResultOrderQty(finalResult.getActualOrder());
+		batch.setResultBoxQty(finalResult.getActualSku());
+		batch.setUph(finalResult.getUph());
+		batch.setProgressRate(finalResult.getRateOrder());
+		batch.setEquipRuntime(finalResult.getRateSku());
 		batch.setStatus(JobBatch.STATUS_END);
 		batch.setFinishedAt(finishedAt);
-		
-		this.queryManager.update(batch, "resultOrderQty", "resultPcs", "progressRate", "uph", "status", "finishedAt");
+		this.queryManager.update(batch, "resultOrderQty", "resultBoxQty", "resultPcs", "progressRate", "uph", "equipRuntime", "status", "finishedAt");
 	}
 
 }

@@ -169,7 +169,7 @@ public class DasInstructionService extends AbstractQueryService implements IInst
 		this.queryManager.insertBatch(newWorkCellList);
 		
 		// 2. 신규 상품 & 셀 기반으로 WorkCell 업데이트 혹은 추가하면서 상태가 ENDING, ENDED인 것은 NULL로 업데이트
-		sql = "UPDATE WORK_CELLS SET STATUS = null, JOB_INSTANCE_ID = null where domain_id = :domainId and BATCH_ID = :mainBatchId AND STATUS IN ('ENDING', 'ENDED') AND CLASS_CD IN (SELECT DISTINCT CLASS_CD FROM ORDERS WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId)";
+		sql = "UPDATE WORK_CELLS SET STATUS = null, JOB_INSTANCE_ID = null WHERE DOMAIN_ID = :domainId and BATCH_ID = :mainBatchId AND STATUS IN ('ENDING', 'ENDED') AND CLASS_CD IN (SELECT DISTINCT CLASS_CD FROM ORDERS WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId)";
 		this.queryManager.executeBySql(sql, qParams);
 		
 		// 3. 병합 배치의 작업 정보 생성을 위한 작업 조회
@@ -202,7 +202,7 @@ public class DasInstructionService extends AbstractQueryService implements IInst
 		this.queryManager.insertBatch(newJobList);
 		
 		// 9. 병합하려는 배치의 주문을 메인 배치로 병합
-		sql = "UPDATE ORDERS SET BATCH_ID = :mainBatchId where domain_id = :domainId and BATCH_ID = :batchId";
+		sql = "UPDATE ORDERS SET BATCH_ID = :mainBatchId WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId";
 		this.queryManager.executeBySql(sql, qParams);
 	}
 	

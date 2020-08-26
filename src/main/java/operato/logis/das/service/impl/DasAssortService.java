@@ -16,6 +16,7 @@ import operato.logis.das.service.util.DasBatchJobConfigUtil;
 import xyz.anythings.base.LogisCodeConstants;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.BoxPack;
+import xyz.anythings.base.entity.Cell;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.JobInput;
 import xyz.anythings.base.entity.JobInstance;
@@ -169,7 +170,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 					// 4. 추출한 작업 리스트에 대해서 표시기 점등
 					indSvc.indicatorsOn(batch, true, jobList);
 					
-					// TODO 아래 API로 수정 
+					// TODO 아래 API로 수정
 					// indSvc.restoreIndicatorsOn(JobBatch batch, int inputSeq, String equipZone, String mode)
 					// TODO 게이트웨이 소속 로케이션에 대해서 작업이 존재하고 작업이 모두 완료된 경우 FULLBOX, END 표시를 한다.
 				}
@@ -190,9 +191,9 @@ public class DasAssortService extends AbstractClassificationService implements I
 		
 		// 3. 설정에서 작업배치 시에 게이트웨이 리부팅 할 지 여부 조회
 		boolean gwReboot = DasBatchJobConfigUtil.isGwRebootWhenInstruction(batch);
+		IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
 		
 		if(gwReboot) {
-			IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
 			List<Gateway> gwList = indSvc.searchGateways(batch);
 			
 			// 게이트웨이 리부팅 처리
@@ -211,8 +212,32 @@ public class DasAssortService extends AbstractClassificationService implements I
 				}
 			}
 			
-			// 표시기에 박스 매핑 표시 
-			((IDasIndicationService)this.serviceDispatcher.getIndicationService(batch)).displayAllForBoxMapping(batch);
+			// 표시기에 박스 매핑 표시
+			((IDasIndicationService)indSvc).displayAllForBoxMapping(batch);
+		
+		// 5. 작업 지시 시점에 표시기에 로케이션 정보 표시할 지 여부 조회
+		} else if(DasBatchJobConfigUtil.isIndOnCellCodeWhenInstruction(batch)) {
+			// 게이트웨이 리부팅 시에는 리부팅 프로세스 완료시까지 약 1분여간 기다린다.
+			if(gwReboot) {
+				int sleepTime = DasBatchJobConfigUtil.getWaitDuarionIndOnAssignedCellWhenInstruction(batch);
+				if(sleepTime > 0) {
+					ThreadUtil.sleep(sleepTime * 1000);
+				}
+			}
+			
+			// 배치 소속 게이트웨이 조회
+			List<Gateway> gwList = indSvc.searchGateways(batch);
+			
+			// 게이트웨이 별 표시기에 셀 코드 표시 처리
+			for(Gateway gw : gwList) {
+				Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
+				condition.addFilter("gwCd", gw.getGwCd());
+				condition.addOrder("indSeq", true);
+				List<Cell> cellList = this.queryManager.selectList(Cell.class, ValueUtil.newMap("domainId,gwCd", batch.getDomainId(), gw.getGwCd()));
+				for(Cell cell : cellList) {
+					indSvc.displayForCellCd(batch.getDomainId(), batch.getId(), batch.getStageCd(), batch.getJobType(), gw.getGwNm(), cell.getIndCd(), cell.getCellCd());
+				}
+			}
 		}
 	}
 
@@ -475,7 +500,10 @@ public class DasAssortService extends AbstractClassificationService implements I
 		}
 		
 		// 3. 릴레이 처리
-		String endMode = this.doNextJob(batch, job, exeEvent.getWorkCell(), false);
+		WorkCell wc = exeEvent.getWorkCell();
+		wc.setLastJobCd("pick");
+		wc.setLastPickedQty(resQty);
+		String endMode = this.doNextJob(batch, job, wc, false);
 		// 4. 릴레이 처리 후 넘어오는 값에 따라 리프레쉬 모드 변경 (주문 전체 완료 [order-end] : COMMAND_REFRESH, 해당 작업 존 완료 [zone-end] : COMMAND_REFRESH, 피킹 완료 [pick-end] : COMMAND_REFRESH_DETAILS)
 		String refreshMode = (ValueUtil.isEmpty(endMode) || ValueUtil.isEqualIgnoreCase(endMode, "pick-end")) ? DeviceCommand.COMMAND_REFRESH_DETAILS : DeviceCommand.COMMAND_REFRESH;
 		this.sendMessageToMobileDevice(batch, null, null, "info", refreshMode);
@@ -504,7 +532,10 @@ public class DasAssortService extends AbstractClassificationService implements I
 		}
 		
 		// 3. 릴레이 처리
-		this.doNextJob(batch, job, exeEvent.getWorkCell(), false);
+		WorkCell wc = exeEvent.getWorkCell();
+		wc.setLastJobCd("cancel");
+		wc.setLastPickedQty(0);
+		this.doNextJob(batch, job, wc, false);
 		// 4. 리프레쉬 모드
 		this.sendMessageToMobileDevice(batch, null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
 		
@@ -566,7 +597,10 @@ public class DasAssortService extends AbstractClassificationService implements I
 		}
 		
 		// 3. 다음 작업 처리
-		this.doNextJob(batch, job, exeEvent.getWorkCell(), false);
+		WorkCell wc = exeEvent.getWorkCell();
+		wc.setLastJobCd("undo");
+		wc.setLastPickedQty(-1 * pickedQty);
+		this.doNextJob(batch, job, wc, false);
 		// 4. 태블릿 피킹 화면 리프레쉬
 		this.sendMessageToMobileDevice(exeEvent.getJobBatch(), null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
 		// 5. 주문 취소된 확정 수량 리턴
@@ -592,7 +626,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		Map<String, Object> params = ValueUtil.newMap("subEquipCd,status", workCell.getCellCd(), LogisConstants.JOB_STATUS_FINISH);
 		List<JobInstance> jobList = this.serviceDispatcher.getJobStatusService(batch).searchJobList(batch, params);
 		
-//		// 5. 풀 박스 체크
+		// 5. 풀 박스 체크
 		if(ValueUtil.isEmpty(jobList)) {
 			// 이미 처리된 항목입니다. --> "작업[" + job.getId() + "]은 이미 풀 박스가 완료되었습니다."
 			String msg = MessageUtil.getMessage("ALREADY_BEEN_PROCEEDED", "Already been proceeded.");
@@ -604,7 +638,9 @@ public class DasAssortService extends AbstractClassificationService implements I
 		
 		// 7. 다음 작업 처리
 		if(boxPack != null) {
-			// 다음 작업 처리 
+			// 다음 작업 처리
+			workCell.setLastJobCd("fullbox");
+			workCell.setLastPickedQty(0);
 			this.doNextJob(batch, jobList.get(0), workCell, true);
 			
 			// 태블릿 피킹 화면 리프레쉬
@@ -918,9 +954,11 @@ public class DasAssortService extends AbstractClassificationService implements I
 	 * @param job
 	 * @param cell
 	 * @param fullboxAction
-	 * @return 완료 모드 리턴 (picking : 피킹 완료, zone-end : 작업 존 완료, order-end : 주문 전체 처리 완료)
+	 * @return 완료 모드 리턴 (pick-end : 피킹 완료, zone-end : 작업 존 완료, order-end : 주문 전체 처리 완료)
 	 */
 	private String doNextJob(JobBatch batch, JobInstance job, WorkCell cell, boolean fullboxAction) {
+		cell.setJobInstanceId(job != null ? job.getId() : null);
+		
 		if(fullboxAction && (ValueUtil.isEqualIgnoreCase(cell.getStatus(), LogisConstants.CELL_JOB_STATUS_ENDING) || ValueUtil.isEqualIgnoreCase(cell.getStatus(), LogisConstants.CELL_JOB_STATUS_ENDED))) {
 			// 1. 풀 박스 액션이고 셀 상태가 ENDED, ENDING인 경우 ...
 			this.finishAssortCell(job, cell, true);
@@ -936,7 +974,8 @@ public class DasAssortService extends AbstractClassificationService implements I
 				if(isSkuInputEndFlag) {
 					// 현재 투입 정보를 완료 처리
 					String query = "update job_inputs set status = :status where domain_id = :domainId and batch_id = :batchId and input_seq = :inputSeq";
-					this.queryManager.executeBySql(query, ValueUtil.newMap("domainId,batchId,inputSeq,status", job.getDomainId(), batch.getId(), job.getInputSeq(), JobInput.INPUT_STATUS_FINISHED));
+					Map<String, Object> condition = ValueUtil.newMap("domainId,batchId,inputSeq,status", job.getDomainId(), batch.getId(), job.getInputSeq(), JobInput.INPUT_STATUS_FINISHED);
+					this.queryManager.executeBySql(query, condition);
 				}
 				
 				// 3.2 모든 셀의 분류가 완료되었는지 체크
@@ -948,10 +987,14 @@ public class DasAssortService extends AbstractClassificationService implements I
 					return "order-end";
 				// 3.4 다음 순서에 투입된 표시기 릴레이로 점등
 				} else {
+					// WorkCell 업데이트
+					this.queryManager.update(cell, "jobInstanceId", "lastJobCd", "lastPickedQty", "updatedAt");
 					this.relayLightOn(batch, job, job.getStationCd());
 					return "zone-end";
 				}
 			} else {
+				// WorkCell 업데이트
+				this.queryManager.update(cell, "jobInstanceId", "lastJobCd", "lastPickedQty", "updatedAt");
 				return "pick-end";
 			}
 		}
