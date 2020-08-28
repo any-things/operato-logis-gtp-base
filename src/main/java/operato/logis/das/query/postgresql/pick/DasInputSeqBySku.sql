@@ -7,7 +7,7 @@ WHERE
 	AND BATCH_ID = :batchId 
 	AND COM_CD = :comCd 
 	AND SKU_CD = :skuCd
-	AND EQUIP_TYPE = 'RACK'
+	AND EQUIP_TYPE = 'Rack'
 	#if($equipCd)
 	AND EQUIP_CD = :equipCd
 	#end
