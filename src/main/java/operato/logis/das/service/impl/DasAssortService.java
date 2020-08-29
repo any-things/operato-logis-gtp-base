@@ -122,19 +122,15 @@ public class DasAssortService extends AbstractClassificationService implements I
 			// 2. 호기로 부터 현재 작업 중인 배치 추출 
 			for(Rack rack : rackList) {
 				// 2-1. 호기 체크
-				if(ValueUtil.isEmpty(rack.getBatchId())) {
-					continue;
+				if(ValueUtil.isNotEmpty(rack.getBatchId())) {
+					// 2-2. 작업 배치 조회
+					JobBatch batch = AnyEntityUtil.findEntityById(false, JobBatch.class, rack.getBatchId());
+					// 2-3. 작업 배치 상태 체크
+					if(batch != null && ValueUtil.isEqual(batch.getStatus(), JobBatch.STATUS_RUNNING)) {
+						// 2-4. 호기 코드, 게이트웨이 코드로 표시기 이전 상태 복원
+						this.restoreMpiOn(batch, gateway, rack.getRackCd());
+					}
 				}
-				
-				// 2-2. 작업 배치 및 상태 체크
-				JobBatch batch = AnyEntityUtil.findEntityById(false, JobBatch.class, rack.getBatchId());
-				
-				if(batch == null || ValueUtil.isNotEqual(batch.getStatus(), JobBatch.STATUS_RUNNING)) {
-					continue;
-				}
-				
-				// 2-3. 호기 코드, 게이트웨이 코드로 표시기 이전 상태 복원
-				this.restoreMpiOn(batch, gateway, rack.getRackCd());
 			}
 		}
 	}
@@ -525,9 +521,9 @@ public class DasAssortService extends AbstractClassificationService implements I
 		if(job.isTodoJob() && job.getPickingQty() > 0) {
 			job.setPickingQty(0);
 			// 취소 옵션이 취소시 '취소 상태'를 관리한다면 '취소 상태'로 변경 
-			//if(BatchJobConfigUtil.isPickCancelStatusEnabled(batch)) {
-			job.setStatus(LogisConstants.JOB_STATUS_CANCEL);
-			//}
+			if(BatchJobConfigUtil.isPickCancelStatusEnabled(batch)) {
+				job.setStatus(LogisConstants.JOB_STATUS_CANCEL);
+			}
 			this.queryManager.update(job, "status", "pickingQty", "updatedAt");
 		}
 		
@@ -759,7 +755,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		String cellJobStatus = finalEndFlag ? LogisConstants.CELL_JOB_STATUS_ENDED : LogisConstants.CELL_JOB_STATUS_ENDING;
 		workCell.setStatus(cellJobStatus);
 		workCell.setJobInstanceId(finalEndFlag ? null : job.getId());
-		this.queryManager.update(workCell, "status", "jobInstanceId", "updatedAt");
+		this.queryManager.update(workCell, "status", "jobInstanceId", "indCd", "updatedAt");
 		
 		// 2. 표시기에 분류 처리 내용 표시
 		this.serviceDispatcher.getIndicationService(job).indicatorOnForPickEnd(job, finalEndFlag);
@@ -884,7 +880,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		newInput.setComCd(comCd);
 		newInput.setSkuCd(skuCd);
 
-		// 투입 유형을 설정에서 조회해서 혹은 화면에서 직접 넘겨주기 ...
+		// 3. 투입 유형 설정 - TODO 투입 유형을 설정에서 조회해서 혹은 화면에서 직접 넘겨주기 ...
 		if(DasBatchJobConfigUtil.isSingleSkuInputEnabled(batch)) {
 			newInput.setInputType(LogisCodeConstants.JOB_INPUT_TYPE_PCS);
 		} else if(DasBatchJobConfigUtil.isSingleBoxInputEnabled(batch)) {
@@ -898,7 +894,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		newInput.setInputQty(classCnt.intValue());
 		newInput.setStatus(JobInput.INPUT_STATUS_WAIT);
 		
-		// 이전 투입에 대한 컬러 조회
+		// 4. 이전 투입에 대한 컬러 조회
 		IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
 		firstJob.setInputSeq(nextInputSeq);
 		String prevColor = indSvc.prevIndicatorColor(firstJob);
@@ -906,7 +902,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		newInput.setColorCd(currentColor);
 		this.queryManager.insert(newInput);
 		
-		// 3. 투입 작업 리스트 업데이트 
+		// 5. 투입 작업 리스트 업데이트 
 		String currentTime = DateUtil.currentTimeStr();
 		for(JobInstance job : jobList) {
 			job.setStatus(LogisConstants.JOB_STATUS_INPUT);
@@ -917,7 +913,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 			job.setPickingQty(job.getPickQty());
 		}
 		
-		// 4. 작업 정보 업데이트
+		// 6. 작업 정보 업데이트
 		this.queryManager.updateBatch(jobList, "status", "pickingQty", "colorCd", "inputSeq", "pickStartedAt", "inputAt", "updaterId", "updatedAt");
 		
 		// 5. 투입 정보 리턴
@@ -958,6 +954,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 	 */
 	private String doNextJob(JobBatch batch, JobInstance job, WorkCell cell, boolean fullboxAction) {
 		cell.setJobInstanceId(job != null ? job.getId() : null);
+		cell.setIndCd(job.getIndCd());
 		
 		if(fullboxAction && (ValueUtil.isEqualIgnoreCase(cell.getStatus(), LogisConstants.CELL_JOB_STATUS_ENDING) || ValueUtil.isEqualIgnoreCase(cell.getStatus(), LogisConstants.CELL_JOB_STATUS_ENDED))) {
 			// 1. 풀 박스 액션이고 셀 상태가 ENDED, ENDING인 경우 ...
@@ -988,13 +985,13 @@ public class DasAssortService extends AbstractClassificationService implements I
 				// 3.4 다음 순서에 투입된 표시기 릴레이로 점등
 				} else {
 					// WorkCell 업데이트
-					this.queryManager.update(cell, "jobInstanceId", "lastJobCd", "lastPickedQty", "updatedAt");
+					this.queryManager.update(cell, "jobInstanceId", "indCd", "lastJobCd", "lastPickedQty", "updatedAt");
 					this.relayLightOn(batch, job, job.getStationCd());
 					return "zone-end";
 				}
 			} else {
 				// WorkCell 업데이트
-				this.queryManager.update(cell, "jobInstanceId", "lastJobCd", "lastPickedQty", "updatedAt");
+				this.queryManager.update(cell, "jobInstanceId", "indCd", "lastJobCd", "lastPickedQty", "updatedAt");
 				return "pick-end";
 			}
 		}
@@ -1044,12 +1041,12 @@ public class DasAssortService extends AbstractClassificationService implements I
 	private void updateOrderPickedQtyByConfirm(JobInstance job, int totalPickedQty) {
 		// 1. 주문 정보 조회
 		Query condition = AnyOrmUtil.newConditionForExecution(job.getDomainId());
-		condition.addFilter("batchId",	job.getBatchId());
+		condition.addFilter("batchId", job.getBatchId());
 		condition.addFilter("subEquipCd", job.getSubEquipCd());
-		condition.addFilter("skuCd",	job.getSkuCd());
-		condition.addFilter("status",	SysConstants.IN,	ValueUtil.toList(LogisConstants.COMMON_STATUS_RUNNING, LogisConstants.COMMON_STATUS_WAIT));
-		condition.addOrder("orderNo",	true);
-		condition.addOrder("pickedQty",	false);
+		condition.addFilter("skuCd", job.getSkuCd());
+		condition.addFilter("status", SysConstants.IN, ValueUtil.toList(LogisConstants.COMMON_STATUS_RUNNING, LogisConstants.COMMON_STATUS_WAIT));
+		condition.addOrder("orderNo", true);
+		condition.addOrder("pickedQty", false);
 		List<Order> sources = this.queryManager.selectList(Order.class, condition);
  		
 		// 2. 주문에 피킹 확정 수량 업데이트
