@@ -495,20 +495,17 @@ public class DasAssortService extends AbstractClassificationService implements I
 			this.updateOrderPickedQtyByConfirm(job, resQty);
 		}
 		
-		// 3. 릴레이 처리
-		WorkCell wc = exeEvent.getWorkCell();
-		wc.setLastJobCd("pick");
-		wc.setLastPickedQty(resQty);
-		String endMode = this.doNextJob(batch, job, wc, false);
-		// 4. 릴레이 처리 후 넘어오는 값에 따라 리프레쉬 모드 변경 (주문 전체 완료 [order-end] : COMMAND_REFRESH, 해당 작업 존 완료 [zone-end] : COMMAND_REFRESH, 피킹 완료 [pick-end] : COMMAND_REFRESH_DETAILS)
-		String refreshMode = (ValueUtil.isEmpty(endMode) || ValueUtil.isEqualIgnoreCase(endMode, "pick-end")) ? DeviceCommand.COMMAND_REFRESH_DETAILS : DeviceCommand.COMMAND_REFRESH;
-		this.sendMessageToMobileDevice(batch, null, null, "info", refreshMode);
-		
-		// 5. 태블릿 등 모바일 장비에서 작업 완료 처리시 표시기 소등 처리
+		// 3. 태블릿 등 모바일 장비에서 작업 완료 처리시 표시기 소등 처리
 		if(ValueUtil.isNotEqual(exeEvent.getClassifyDevice(), Indicator.class.getSimpleName())) {
 			String pickQtyStr = this.toIndicatorStr(resQty);
 			this.serviceDispatcher.getIndicationService(job).displayForString(batch.getDomainId(), batch.getId(), batch.getStageCd(), batch.getJobType(), job.getIndCd(), pickQtyStr);
 		}
+		
+		// 4. 릴레이 처리
+		WorkCell wc = exeEvent.getWorkCell();
+		wc.setLastJobCd("pick");
+		wc.setLastPickedQty(resQty);
+		this.doNextJob(batch, job, wc, false);
 	}
 
 	@Override
@@ -527,19 +524,17 @@ public class DasAssortService extends AbstractClassificationService implements I
 			this.queryManager.update(job, "status", "pickingQty", "updatedAt");
 		}
 		
-		// 3. 릴레이 처리
-		WorkCell wc = exeEvent.getWorkCell();
-		wc.setLastJobCd("cancel");
-		wc.setLastPickedQty(0);
-		this.doNextJob(batch, job, wc, false);
-		// 4. 리프레쉬 모드
-		this.sendMessageToMobileDevice(batch, null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
-		
-		// 5. 태블릿 등 모바일 장비에서 작업 완료 처리시 표시기 소등 처리
+		// 3. 태블릿 등 모바일 장비에서 작업 완료 처리시 표시기 소등 처리
 		if(ValueUtil.isNotEqual(exeEvent.getClassifyDevice(), Indicator.class.getSimpleName())) {
 			String pickQtyStr = this.toIndicatorStr(0);
 			this.serviceDispatcher.getIndicationService(job).displayForString(batch.getDomainId(), batch.getId(), batch.getStageCd(), batch.getJobType(), job.getIndCd(), pickQtyStr);
 		}
+		
+		// 4. 릴레이 처리
+		WorkCell wc = exeEvent.getWorkCell();
+		wc.setLastJobCd("cancel");
+		wc.setLastPickedQty(0);
+		this.doNextJob(batch, job, wc, false);
 	}
 
 	@Override
@@ -597,9 +592,8 @@ public class DasAssortService extends AbstractClassificationService implements I
 		wc.setLastJobCd("undo");
 		wc.setLastPickedQty(-1 * pickedQty);
 		this.doNextJob(batch, job, wc, false);
-		// 4. 태블릿 피킹 화면 리프레쉬
-		this.sendMessageToMobileDevice(exeEvent.getJobBatch(), null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
-		// 5. 주문 취소된 확정 수량 리턴
+
+		// 4. 주문 취소된 확정 수량 리턴
 		return pickedQty;
 	}
 
@@ -638,12 +632,9 @@ public class DasAssortService extends AbstractClassificationService implements I
 			workCell.setLastJobCd("fullbox");
 			workCell.setLastPickedQty(0);
 			this.doNextJob(batch, jobList.get(0), workCell, true);
-			
-			// 태블릿 피킹 화면 리프레쉬
-			this.sendMessageToMobileDevice(outEvent.getJobBatch(), null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
 		}
 		
-		// 7. 박스 리턴
+		// 8. 박스 리턴
 		return boxPack;
 	}
 
@@ -950,23 +941,22 @@ public class DasAssortService extends AbstractClassificationService implements I
 	 * @param job
 	 * @param cell
 	 * @param fullboxAction
-	 * @return 완료 모드 리턴 (pick-end : 피킹 완료, zone-end : 작업 존 완료, order-end : 주문 전체 처리 완료)
 	 */
-	private String doNextJob(JobBatch batch, JobInstance job, WorkCell cell, boolean fullboxAction) {
+	private void doNextJob(JobBatch batch, JobInstance job, WorkCell cell, boolean fullboxAction) {
+		// 1. WorkCell 업데이트
 		cell.setJobInstanceId(job != null ? job.getId() : null);
 		cell.setIndCd(job.getIndCd());
 		
 		if(fullboxAction && (ValueUtil.isEqualIgnoreCase(cell.getStatus(), LogisConstants.CELL_JOB_STATUS_ENDING) || ValueUtil.isEqualIgnoreCase(cell.getStatus(), LogisConstants.CELL_JOB_STATUS_ENDED))) {
-			// 1. 풀 박스 액션이고 셀 상태가 ENDED, ENDING인 경우 ...
+			// 2. 풀 박스 액션이고 셀 상태가 ENDED, ENDING인 경우 ...
 			this.finishAssortCell(job, cell, true);
-			return "pick-end";
 			
 		} else {
-			// 2. 현재 작업 중인 투입 시퀀스에 대해서 분류가 완료 되었는지 여부 
-			boolean currentInputStationEnded = this.checkStationJobsEnd(job, job.getStationCd());
-			// 3. 작업 스테이션이 완료되었다면  
-			if(currentInputStationEnded) {
-				// 3.1 현재 투입 정보가 완료되었는지 체크
+			// 3. 현재 작업 중인 투입 시퀀스에 대해서 분류가 완료 되었는지 여부 
+			boolean currentStationEnded = this.checkStationJobsEnd(job, job.getStationCd());
+			// 3.1 작업 스테이션이 완료되었다면  
+			if(currentStationEnded) {
+				// 3.2 현재 투입 정보가 완료되었는지 체크
 				boolean isSkuInputEndFlag = this.checkSkuInputEnd(job);
 				if(isSkuInputEndFlag) {
 					// 현재 투입 정보를 완료 처리
@@ -975,26 +965,25 @@ public class DasAssortService extends AbstractClassificationService implements I
 					this.queryManager.executeBySql(query, condition);
 				}
 				
-				// 3.2 모든 셀의 분류가 완료되었는지 체크
-				boolean cellEndFlag = this.checkCellAssortEnd(job, false);
-				// 3.3 해당 셀의 작업이 모두 완료 상태인지 체크
-				if(cellEndFlag) {
-					// WorkCell 상태 완료 처리
-					this.finishAssortCell(job, cell, false);
-					return "order-end";
-				// 3.4 다음 순서에 투입된 표시기 릴레이로 점등
-				} else {
-					// WorkCell 업데이트
-					this.queryManager.update(cell, "jobInstanceId", "indCd", "lastJobCd", "lastPickedQty", "updatedAt");
-					this.relayLightOn(batch, job, job.getStationCd());
-					return "zone-end";
-				}
+				// 3.3 릴레이 처리...
+				this.relayLightOn(batch, job, job.getStationCd());
+			}
+				
+			// 4. 모든 셀의 분류가 완료되었는지 체크
+			boolean cellEndFlag = this.checkCellAssortEnd(job, false);
+			// 4.1 해당 셀의 작업이 모두 완료 상태인지 체크
+			if(cellEndFlag) {
+				// WorkCell 상태 완료 처리
+				this.finishAssortCell(job, cell, false);
+			// 4.2 다음 순서에 투입된 표시기 릴레이로 점등
 			} else {
 				// WorkCell 업데이트
 				this.queryManager.update(cell, "jobInstanceId", "indCd", "lastJobCd", "lastPickedQty", "updatedAt");
-				return "pick-end";
 			}
 		}
+		
+		// 5. 릴레이 처리 후 모바일 장비 리프레쉬 메시지 전달
+		this.sendMessageToMobileDevice(batch, null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
 	}
 
 	/**
