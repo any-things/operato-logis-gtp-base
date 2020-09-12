@@ -210,8 +210,8 @@ public class DasIndicationService extends AbstractLogisService implements IDasIn
 	
 	@Override
 	public void displayAllForBoxMapping(JobBatch batch) {
-		String sql = "select i.ind_cd, g.gw_nm as gw_path from work_cells c inner join indicators i on c.domain_id = i.domain_id and c.ind_cd = i.ind_cd inner join gateways g on i.domain_id = g.domain_id and i.gw_cd = g.gw_cd where c.domain_id = :domainId and c.batch_id = :batchId and c.sku_cd is not null";
-		Map<String, Object> params = ValueUtil.newMap("domainId,stageCd,activeFlag,rackCd,indQueryFlag", batch.getDomainId(), batch.getStageCd(), true, batch.getEquipCd(), true);
+		String sql = "select i.ind_cd, g.gw_nm as gw_path from cells c inner join indicators i on c.domain_id = i.domain_id and c.ind_cd = i.ind_cd inner join gateways g on i.domain_id = g.domain_id and i.gw_cd = g.gw_cd where c.domain_id = :domainId and c.active_flag = :activeFlag and c.cell_cd in (select cell_cd from work_cells where domain_id = :domainId and batch_id = :batchId)";
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,activeFlag", batch.getDomainId(), batch.getId(), true);
 		List<IndCommonReq> indList = this.queryManager.selectListBySql(sql, params, IndCommonReq.class, 0, 0);
 		
 		IIndRequestService indReqSvc = this.getIndicatorRequestService(batch);

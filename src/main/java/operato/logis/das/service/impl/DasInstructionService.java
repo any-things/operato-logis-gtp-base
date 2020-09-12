@@ -20,10 +20,11 @@ import xyz.anythings.base.entity.Rack;
 import xyz.anythings.base.entity.WorkCell;
 import xyz.anythings.base.service.api.IIndicationService;
 import xyz.anythings.base.service.api.IInstructionService;
+import xyz.anythings.base.service.impl.AbstractInstructionService;
 import xyz.anythings.base.service.impl.LogisServiceDispatcher;
 import xyz.anythings.base.util.LogisBaseUtil;
 import xyz.anythings.gw.entity.IndConfigSet;
-import xyz.anythings.sys.service.AbstractQueryService;
+import xyz.anythings.sys.event.model.SysEvent;
 import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.anythings.sys.util.AnyValueUtil;
@@ -41,7 +42,7 @@ import xyz.elidom.util.ValueUtil;
  * @author shortstop
  */
 @Component("dasInstructionService")
-public class DasInstructionService extends AbstractQueryService implements IInstructionService {
+public class DasInstructionService extends AbstractInstructionService implements IInstructionService {
 
 	/**
 	 * 출고 작업 쿼리 스토어
@@ -244,6 +245,9 @@ public class DasInstructionService extends AbstractQueryService implements IInst
 		for(WorkCell cell : indOffCells) {
 			indSvc.indicatorOff(domainId, mainBatch.getStageCd(), cell.getIndCd());
 		}
+		
+		// 3. 작업 병합 이벤트 전송
+		this.publishMergingEvent(SysEvent.EVENT_STEP_AFTER, mainBatch, newBatch, null);
 	}
 
 	@Override
@@ -297,9 +301,7 @@ public class DasInstructionService extends AbstractQueryService implements IInst
 		// 3. 작업 배치 정보 업데이트 
 		batch.setStatus(JobBatch.STATUS_READY);
 		batch.setInstructedAt(null);
-		batch.setBatchOrderQty(0);
-		batch.setBatchPcs(0);
-		this.queryManager.update(batch, "status", "instructedAt", "batchOrderQty", "batchPcs");
+		this.queryManager.update(batch, "status", "instructedAt");
 		
 		// 4. WorkCell 정보 삭제
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId", domainId, batch.getId());
@@ -319,10 +321,13 @@ public class DasInstructionService extends AbstractQueryService implements IInst
 	 * @return
 	 */
 	protected void afterCancelInstructionBatch(JobBatch batch) {
-		// 작업 지시 시점에 표시기 점등했다면 표시기 소등
+		// 1. 작업 지시 시점에 표시기 점등했다면 표시기 소등
 		if(RtnBatchJobConfigUtil.isIndOnAssignedCellWhenInstruction(batch)) {
 			BeanUtil.get(LogisServiceDispatcher.class).getIndicationService(batch).indicatorOffAll(batch);
 		}
+		
+		// 2. 작업 지시 취소 이벤트 전송
+		this.publishInstructionCancelEvent(SysEvent.EVENT_STEP_AFTER, batch, null);
 	}
 	
 	/**
@@ -403,7 +408,8 @@ public class DasInstructionService extends AbstractQueryService implements IInst
 		// 1. 배치 시작 액션 처리 
 		this.serviceDispatcher.getAssortService(batch).batchStartAction(batch);
 
-		// 2. ...
+		// 2. 작업 지시 이벤트 전송
+		this.publishInstructionEvent(SysEvent.EVENT_STEP_AFTER, batch, equipIdList);
 		return true;
 	}
 	
