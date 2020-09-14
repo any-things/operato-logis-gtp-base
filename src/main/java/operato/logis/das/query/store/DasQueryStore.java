@@ -228,6 +228,15 @@ public class DasQueryStore extends AbstractQueryStore {
 	}
 	
 	/**
+	 * 표시기 검수 작업 현황 조회
+	 * 
+	 * @return
+	 */
+	public String getSearchInspectionJobListQuery() {
+		return this.getQueryByPath("pick/InspectionJobListByIndicator");
+	}
+	
+	/**
 	 * 중분류 쿼리 
 	 * 
 	 * @return
