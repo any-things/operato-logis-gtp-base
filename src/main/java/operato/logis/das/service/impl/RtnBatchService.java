@@ -1,6 +1,7 @@
 package operato.logis.das.service.impl;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import operato.logis.das.query.store.RtnQueryStore;
 import xyz.anythings.base.LogisConstants;
+import xyz.anythings.base.entity.Cell;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.entity.Order;
@@ -175,6 +177,74 @@ public class RtnBatchService extends AbstractLogisService implements IBatchServi
 		batch.setFinishedAt(finishedAt);
 		
 		this.queryManager.update(batch, "resultOrderQty", "resultPcs", "progressRate", "uph", "status", "finishedAt");
+	}
+
+	@Override
+	public void isPossibleChangeEquipment(JobBatch batch, String toEquipCd) {
+		// 1. 랙이 다른 랙인지 체크
+		String fromRackCd = batch.getEquipCd();
+		if(ValueUtil.isNotEmpty(fromRackCd) && ValueUtil.isEqualIgnoreCase(batch.getEquipCd(), toEquipCd)) {
+			throw ThrowUtil.newValidationErrorWithNoLog("현재 배치의 랙과 다른 랙을 선택하세요.");
+		}
+		
+		// 2. 배치 상태 체크
+		String status = batch.getStatus();
+		if(ValueUtil.isNotEqual(status, JobBatch.STATUS_WAIT) && ValueUtil.isNotEqual(status, JobBatch.STATUS_RECEIVE)) {
+			throw ThrowUtil.newValidationErrorWithNoLog("작업 진행 전에만 랙 전환이 가능합니다.");
+		}
+		
+		// 3. From Cell Count
+		String sql = "select count(*) from cells where domain_id = :domainId and equip_type = :equipType and equip_cd = :equipCd and active_flag = :activeFlag";
+		Map<String, Object> condition = ValueUtil.newMap("domainId,equipType,equipCd,activeFlag", batch.getDomainId(), batch.getEquipType(), batch.getEquipCd(), true);
+		int fromCellCount = this.queryManager.selectBySql(sql, condition, Integer.class);
+		
+		// 4. To Cell Count
+		sql = "select count(*) from cells where domain_id = :domainId and equip_type = :equipType and equip_cd = :equipCd and active_flag = :activeFlag";
+		condition.put("equipCd", toEquipCd);
+		int toCellCount = this.queryManager.selectBySql(sql, condition, Integer.class);
+		
+		// 5. 셀 개수 체크
+		if(fromCellCount != toCellCount) {
+			throw ThrowUtil.newValidationErrorWithNoLog("전환할 랙의 셀 개수와 이전 랙의 셀 개수가 다릅니다.");
+		}
+	}
+
+	@Override
+	public void changeEquipment(JobBatch batch, String toEquipCd) {
+		
+		Long domainId = batch.getDomainId();
+		Query condition = AnyOrmUtil.newConditionForExecution(domainId);
+		condition.addSelect("cell_cd");
+		condition.addFilter("equipType", batch.getEquipType());
+		condition.addFilter("equipCd", batch.getEquipCd());
+		condition.addOrder("cellSeq", true);
+		
+		// 1. From 랙을 셀 순서대로 조회
+		List<Cell> fromCellList = this.queryManager.selectList(Cell.class, condition);
+		
+		// 2. To 랙을 셀 순서대로 조회
+		condition.removeFilter("equipCd");
+		condition.addFilter("equipCd", toEquipCd);
+		List<Cell> toCellList = this.queryManager.selectList(Cell.class, condition);
+		
+		// 3. 주문 가공 / 주문의 From Cell과 To Cell을 그대로 이동
+		String preprocessSql = "UPDATE ORDER_PREPROCESSES SET EQUIP_CD = :toEquipCd, SUB_EQUIP_CD = :toCellCd WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId AND SUB_EQUIP_CD = :fromCellCd";
+		String orderSql = "UPDATE ORDERS SET EQUIP_CD = :toEquipCd, SUB_EQUIP_CD = :toCellCd WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId AND SUB_EQUIP_CD = :fromCellCd";
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,toEquipCd", domainId, batch.getId(), toEquipCd);
+		
+		for(int i = 0 ; i < fromCellList.size() ; i++) {
+			Cell fromCell = fromCellList.get(i);
+			Cell toCell = toCellList.get(i);
+			params.put("fromCellCd", fromCell.getCellCd());
+			params.put("toCellCd", toCell.getCellCd());
+			
+			this.queryManager.executeBySql(preprocessSql, params);
+			this.queryManager.executeBySql(orderSql, params);
+		}
+		
+		// 5. 작업 배치 변경
+		batch.setEquipCd(toEquipCd);
+		this.queryManager.update(batch, "equipCd", "updaterId", "updatedAt");
 	}
 
 }
