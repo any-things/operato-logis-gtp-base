@@ -60,7 +60,7 @@ public class OperatoLogisDasInitializer {
 	}
 	
 	@EventListener({ApplicationReadyEvent.class})
-    void ready(ApplicationReadyEvent event) {
+	void ready(ApplicationReadyEvent event) {
 		this.logger.info("Operato Logistics DAS module initializing...");
 		
 		this.configSet.addConfig(this.module.getName(), this.module);
@@ -68,7 +68,7 @@ public class OperatoLogisDasInitializer {
 		this.initQueryStores();
 		
 		this.logger.info("Operato Logistics DAS module initialized!");
-    }
+	}
 	
 	/**
 	 * 모듈 서비스 스캔 

@@ -41,7 +41,7 @@ import xyz.anythings.base.service.api.IIndicationService;
 import xyz.anythings.base.service.api.IJobStatusService;
 import xyz.anythings.base.service.impl.AbstractClassificationService;
 import xyz.anythings.base.service.util.BatchJobConfigUtil;
-import xyz.anythings.gw.GwConstants;
+import xyz.anythings.base.service.util.RuntimeIndServiceUtil;
 import xyz.anythings.gw.entity.Gateway;
 import xyz.anythings.gw.entity.IndConfigSet;
 import xyz.anythings.gw.entity.Indicator;
@@ -110,24 +110,24 @@ public class DasAssortService extends AbstractClassificationService implements I
 	
 	@EventListener(classes = GatewayInitEvent.class, condition = "#gwInitEvent.eventStep == 2")
 	public void handleGatewayInitReport(GatewayInitEvent gwInitEvent) {
-		// Gateway 정보 추출
+		// 1. Gateway 정보 추출
 		Gateway gateway = gwInitEvent.getGateway();
 		
 		if(gateway != null) {
-			// 1. Gateway 정보로 호기 리스트 추출
+			// 2. Gateway 정보로 호기 리스트 추출
 			Long domainId = gwInitEvent.getDomainId();
 			String sql = "select rack_cd, batch_id from racks where domain_id = :domainId and job_type = :jobType and rack_cd in (select distinct(equip_cd) as equip_cd from cells where domain_id = :domainId and ind_cd in (select ind_cd from indicators where domain_id = :domainId and gw_cd = :gwCd) order by equip_cd)";
 			List<Rack> rackList = this.queryManager.selectListBySql(sql, ValueUtil.newMap("domainId,jobType,gwCd", domainId, LogisConstants.JOB_TYPE_DAS, gateway.getGwCd()), Rack.class, 0, 0);
 			
-			// 2. 호기로 부터 현재 작업 중인 배치 추출 
+			// 3. 호기로 부터 현재 작업 중인 배치 추출 
 			for(Rack rack : rackList) {
-				// 2-1. 호기 체크
+				// 3-1. 호기 체크
 				if(ValueUtil.isNotEmpty(rack.getBatchId())) {
-					// 2-2. 작업 배치 조회
+					// 3-2. 작업 배치 조회
 					JobBatch batch = AnyEntityUtil.findEntityById(false, JobBatch.class, rack.getBatchId());
-					// 2-3. 작업 배치 상태 체크
+					// 3-3. 작업 배치 상태 체크
 					if(batch != null && ValueUtil.isEqual(batch.getStatus(), JobBatch.STATUS_RUNNING)) {
-						// 2-4. 호기 코드, 게이트웨이 코드로 표시기 이전 상태 복원
+						// 3-4. 호기 코드, 게이트웨이 코드로 표시기 이전 상태 복원
 						this.restoreMpiOn(batch, gateway, rack.getRackCd());
 					}
 				}
@@ -144,34 +144,28 @@ public class DasAssortService extends AbstractClassificationService implements I
 	 */
 	public void restoreMpiOn(JobBatch batch, Gateway gw, String rackCd) {
 		if(ValueUtil.isEqual(batch.getStatus(), JobBatch.STATUS_RUNNING)) {
-			// 1. 해당 호기의 모든 작업 존 조회
 			Long domainId = batch.getDomainId();
-			String sql = "select distinct station_cd from cells where domain_id = :domainId and equip_cd = :equipCd order by station_cd";
-			List<String> stationList = this.queryManager.selectListBySql(sql, ValueUtil.newMap("domainId,equipCd", domainId, rackCd), String.class, 0, 0);
-			IJobStatusService jobStatusSvc = this.serviceDispatcher.getJobStatusService(batch);
-			IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
-			sql = this.dasQueryStore.getDasFindStationWorkingInputSeq();
-			Map<String, Object> params = ValueUtil.newMap("domainId,batchId,jobStatus,status", domainId, batch.getId(), LogisConstants.JOB_STATUS_PICKING, LogisConstants.JOB_STATUS_PICKING);
 			
-			// 2. 추출한 작업 존별로 가장 작은 투입 순서에 피킹 중인 작업 리스트 조회
-			for(String stationCd : stationList) {
-				params.put("stationCd", stationCd);
-				Integer inputSeq = this.queryManager.selectBySql(sql, params, Integer.class);
-				
-				if(inputSeq != null && inputSeq > 0) {
-					// 3. 배치, 작업 존, 투입 순서, 상태로 작업 리스트 조회
-					params.put("inputSeq", inputSeq);
-					List<JobInstance> jobList = jobStatusSvc.searchPickingJobList(batch, params);
-					
-					// 4. 추출한 작업 리스트에 대해서 표시기 점등
-					indSvc.indicatorsOn(batch, true, jobList);
-					
-					// TODO 아래 API로 수정
-					// indSvc.restoreIndicatorsOn(JobBatch batch, int inputSeq, String equipZone, String mode)
-					// TODO 게이트웨이 소속 로케이션에 대해서 작업이 존재하고 작업이 모두 완료된 경우 FULLBOX, END 표시를 한다.
+			// 1. 배치, 게이트웨이에 걸린 모든 진행 중이던 작업 리스트를 조회 ...
+			IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
+			Map<String, Object> condition = ValueUtil.newMap("domainId,batchId,equipCd,gwCd,status,stageCd,jobType", domainId, batch.getId(), rackCd, gw.getGwCd(), LogisConstants.JOB_STATUS_PICKING, batch.getStageCd(), batch.getJobType());
+			IJobStatusService jobStatusSvc = this.serviceDispatcher.getJobStatusService(batch);
+			List<JobInstance> jobList = jobStatusSvc.searchPickingJobList(batch, condition);
+
+			// 2. 작업 중이던 작업 표시기 재점등 ...
+			indSvc.indicatorsOn(batch, true, jobList);
+			
+			// 3. 배치, 게이트웨이에 걸린 셀 중에 ENDING, ENDED 상태인 셀을 모두 조회
+			condition.put("gwPath", gw.getGwNm());
+			condition.put("indStatuses", LogisConstants.CELL_JOB_STATUS_END_LIST);
+			String sql = this.dasQueryStore.getRestoreEndIndicators();
+			jobList = this.queryManager.selectListBySql(sql, condition, JobInstance.class, 0, 0);
+			
+			// 4. ENDING, ENDED 조회한 정보로 모두 점등
+			if(ValueUtil.isNotEmpty(jobList)) {
+				for(JobInstance job : jobList) {
+					indSvc.indicatorOnForPickEnd(job, ValueUtil.isEqualIgnoreCase(job.getStatus(), LogisConstants.CELL_JOB_STATUS_ENDED));
 				}
-				
-				ThreadUtil.sleep(10);
 			}
 		}
 	}
@@ -253,32 +247,26 @@ public class DasAssortService extends AbstractClassificationService implements I
 	}
 
 	@Override
+	@EventListener(classes = ICategorizeEvent.class, condition = "#event.jobType == 'DAS'")
 	public Category categorize(ICategorizeEvent event) {
-		// 1. 배치 추출
-		Long domainId = event.getDomainId();
-		JobBatch batch = event.getJobBatch();
+		// 중분류 수량을 분류 처리한 수량에서 제외할 건지 여부 설정
+		// boolean fixedQtyMode = DasBatchJobConfigUtil.isCategorizationDisplayFixedQtyMode(batch);
+		// boolean regSortAsc = DasBatchJobConfigUtil.isCategorizationRackSortMode(batch);
 		
-		// 2. 상품 체크를 위한 조회
-		SKU sku = AnyEntityUtil.findEntityBy(domainId, true, SKU.class, null, "comCd,skuCd", batch.getComCd(), event.getInputCode());
+		String comCd = event.getComCd();
+		String skuCd = event.getInputCode();
+		List<String> batchIdList = event.getBatchIdList();
 		
-		// 3. 중분류 정보 조회
-		String batchGroupId = event.getBatchGroupId();
-		Map<String, Object> params = ValueUtil.newMap("domainId,comCd,skuCd,jobType", domainId, sku.getComCd(), sku.getSkuCd(), batch.getJobType());
-		params.put(ValueUtil.isEmpty(batchGroupId) ? "batchStatus" : "batchGroupId", ValueUtil.isEmpty(batchGroupId) ? JobBatch.STATUS_RUNNING : batchGroupId);
-		
-		// 4. 중분류 수량을 분류 처리한 수량에서 제외할 건지 여부 설정
-		boolean fixedQtyMode = DasBatchJobConfigUtil.isCategorizationDisplayFixedQtyMode(batch);
-		//    호기를 좌측 정렬할 지 우측 정렬할 지 여부 설정
-		boolean regSortAsc = DasBatchJobConfigUtil.isCategorizationRackSortMode(batch);
-		params.put(fixedQtyMode ? "qtyFix" : "qtyFilter", true);
-		params.put(regSortAsc ? "rackAsc" : "rackDesc", true);
-		
-		// 5. 중분류 쿼리 조회
+		Category category = new Category();
+		category.setSkuCd(event.getInputCode());
 		String sql = this.dasQueryStore.getDasCategorizationQuery();
+		Map<String, Object> params = ValueUtil.newMap("domainId,comCd,skuCd,batchIdList", event.getDomainId(), comCd, skuCd, batchIdList);
 		List<CategoryItem> items = this.queryManager.selectListBySql(sql, params, CategoryItem.class, 0, 0);
+		category.setItems(items);
 		
-		// 6. 최종 호기 순 (혹은 역순)으로 중분류 정보 재배치
-		return new Category(batchGroupId, sku, items);
+		event.setResult(category);
+		event.setExecuted(true);
+		return category;
 	}
 
 	@Override
@@ -328,7 +316,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 					this.cancelAssort(exeEvent);
 					break;
 					
-				// 수량 조정 처리  
+				// 수량 조정 처리
 				case LogisCodeConstants.CLASSIFICATION_ACTION_MODIFY :
 					this.splitAssort(exeEvent);
 					break;
@@ -451,23 +439,25 @@ public class DasAssortService extends AbstractClassificationService implements I
 		String skuCd = inputEvent.getInputCode();
 		int inputSeq = this.validateInputSKU(batch, comCd, skuCd);
 		
-		// 2. 현재 스캔한 상품 외에 다른 상품이 '피킹 중' 상태가 있는지 체크, 있으면 예외 발생
-		List<JobInstance> jobList = this.serviceDispatcher.getJobStatusService(batch).searchPickingJobList(batch, ValueUtil.newMap("status", LogisConstants.JOB_STATUS_PICKING));
-		if(ValueUtil.isNotEmpty(jobList)) {
-			JobInstance unpickJob = jobList.get(0);
-			String msg = MessageUtil.getMessage("NOT_BEEN_COMPLETED_AFTER_INPUT", "투입한 후 완료 처리를 안 한 작업이 있습니다");
-			StringJoiner buffer = new StringJoiner(SysConstants.LINE_SEPARATOR).add(msg)
-			      .add("[" + unpickJob.getInputSeq() + "]")
-				  .add("[" + unpickJob.getSubEquipCd() + "]")
-				  .add("[" + unpickJob.getSkuNm() + "]")
-				  .add("[" + unpickJob.getPickQty() + "/" + unpickJob.getPickedQty() + "]");
-			throw ThrowUtil.newValidationErrorWithNoLog(buffer.toString());
-		}
-		
-		// 3. 투입할 작업 리스트가 없고 투입된 내역이 없다면 에러
+		// 2. 투입할 작업 리스트가 없고 투입된 내역이 없다면 에러
 		if(inputSeq == -1) {
 			// 투입한 상품으로 처리할 작업이 없습니다
 			throw ThrowUtil.newValidationErrorWithNoLog(true, "NO_JOBS_TO_PROCESS_BY_INPUT");
+		} else {
+			// 현재 스캔한 상품 외에 다른 상품이 '피킹 중' 상태가 있는지 체크, 있으면 예외 발생
+			Map<String, Object> params = ValueUtil.newMap("status,overInputSeq", LogisConstants.JOB_STATUS_PICKING, inputSeq);
+			List<JobInstance> jobList = this.serviceDispatcher.getJobStatusService(batch).searchPickingJobList(batch, params);
+			if(ValueUtil.isNotEmpty(jobList)) {
+				JobInstance unpickJob = jobList.get(0);
+				String msg = MessageUtil.getMessage("NOT_BEEN_COMPLETED_AFTER_INPUT", "투입한 후 완료 처리를 안 한 작업이 있습니다");
+				StringJoiner buffer = new StringJoiner(SysConstants.LINE_SEPARATOR)
+						.add(msg)
+						.add("[" + unpickJob.getInputSeq() + "]")
+						.add("[" + unpickJob.getSubEquipCd() + "]")
+						.add("[" + unpickJob.getSkuNm() + "]")
+						.add("[" + unpickJob.getPickQty() + "/" + unpickJob.getPickedQty() + "]");
+				throw ThrowUtil.newValidationErrorWithNoLog(buffer.toString());
+			}
 		}
 		
 		// 4. 투입 순서로 부터 검수
@@ -513,14 +503,13 @@ public class DasAssortService extends AbstractClassificationService implements I
 		// 1. 이벤트로 부터 작업에 필요한 데이터 추출
 		JobBatch batch = exeEvent.getJobBatch();
 		JobInstance job = exeEvent.getJobInstance();
-				
+		
 		// 2. 작업이 진행 상태이면 취소 처리
 		if(job.isTodoJob() && job.getPickingQty() > 0) {
 			job.setPickingQty(0);
-			// 취소 옵션이 취소시 '취소 상태'를 관리한다면 '취소 상태'로 변경 
-			if(BatchJobConfigUtil.isPickCancelStatusEnabled(batch)) {
-				job.setStatus(LogisConstants.JOB_STATUS_CANCEL);
-			}
+			// 작업을 '취소 상태'로 변경
+			// BatchJobConfigUtil.isPickCancelStatusEnabled(batch) ? LogisConstants.JOB_STATUS_CANCEL : LogisConstants.JOB_STATUS_WAIT;
+			job.setStatus(LogisConstants.JOB_STATUS_CANCEL);
 			this.queryManager.update(job, "status", "pickingQty", "updatedAt");
 		}
 		
@@ -550,7 +539,6 @@ public class DasAssortService extends AbstractClassificationService implements I
 		}
 		
 		// 3. 남은 수량 표시기 점등
-		// this.serviceDispatcher.getIndicationService(job).indicatorOnForPick(job, 0, job.getPickingQty(), 0); --> TODO 체크 표시기에 B,P 모드로 내려감 확인 필요
 		this.serviceDispatcher.getIndicationService(job).indicatorsOn(exeEvent.getJobBatch(), false, ValueUtil.toList(job));
 		// 4. 태블릿 피킹 화면 리프레쉬
 		this.sendMessageToMobileDevice(exeEvent.getJobBatch(), null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
@@ -597,7 +585,6 @@ public class DasAssortService extends AbstractClassificationService implements I
 		return pickedQty;
 	}
 
-	@EventListener(classes = IClassifyOutEvent.class, condition = "#outEvent.jobType == 'DAS'")
 	@Override
 	public BoxPack fullBoxing(IClassifyOutEvent outEvent) {
 		// 1. 풀 박스 처리해야 할 작업 리스트 조회
@@ -618,7 +605,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		
 		// 5. 풀 박스 체크
 		if(ValueUtil.isEmpty(jobList)) {
-			// 이미 처리된 항목입니다. --> "작업[" + job.getId() + "]은 이미 풀 박스가 완료되었습니다."
+			// 이미 처리된 항목입니다. --> 작업[job.getId()]은 이미 풀 박스가 완료되었습니다.
 			String msg = MessageUtil.getMessage("ALREADY_BEEN_PROCEEDED", "Already been proceeded.");
 			throw new ElidomRuntimeException(msg);
 		}
@@ -632,8 +619,10 @@ public class DasAssortService extends AbstractClassificationService implements I
 			workCell.setLastJobCd("fullbox");
 			workCell.setLastPickedQty(0);
 			this.doNextJob(batch, jobList.get(0), workCell, true);
+			outEvent.setResult(boxPack);
 		}
 		
+		outEvent.setExecuted(true);
 		// 8. 박스 리턴
 		return boxPack;
 	}
@@ -786,19 +775,34 @@ public class DasAssortService extends AbstractClassificationService implements I
 	 * @return
 	 */
 	private List<JobInstance> indOnByInspection(JobBatch batch, String comCd, String skuCd, int inputSeq) {
-		// 1. 투입 순서로 부터 작업 리스트 조회, --> FIXME 처리한 작업의 경우 로케이션 별로 마지막에 처리한 작업만 조회가 되도록 수정, 처리할 작업은 그대로 ... 
-		List<JobInstance> jobList = this.serviceDispatcher.getJobStatusService(batch).searchPickingJobList(batch, ValueUtil.newMap("comCd,skuCd,inputSeq", comCd, skuCd, inputSeq));
-		// 2. 없으면 완료된 작업과 처리할 작업 리스트를 분리 
-		List<JobInstance> doneJobList = jobList.stream().filter(job -> (job.isDoneJob())).collect(Collectors.toList());
-		List<JobInstance> todoJobList = jobList.stream().filter(job -> (job.isTodoJob())).collect(Collectors.toList());
+		// 1. 처리한 작업 리스트 조회 - 상품, 셀 별로 합계해서 표시기 점등
+		String sql = this.dasQueryStore.getSearchInspectionJobListQuery();
+		Map<String, Object> condition = ValueUtil.newMap("domainId,batchId,comCd,skuCd,inputSeq,statuses", batch.getDomainId(), batch.getId(), comCd, skuCd, inputSeq, LogisConstants.JOB_STATUS_FBER);
+		List<JobInstance> doneJobList = this.queryManager.selectListBySql(sql, condition, JobInstance.class, 0, 0);
+		
+		// 2. 처리할 작업 리스트 조회 - 피킹, 투입, 취소 등 작업 리스트 조회 
+		IJobStatusService statusSvc = this.serviceDispatcher.getJobStatusService(batch);
+		condition.put("statuses", LogisConstants.JOB_STATUS_WIPC);
+		List<JobInstance> todoJobList = statusSvc.searchPickingJobList(batch, condition);
+		
 		// 3. inspectJobList는 inspection 모드로 표시기 점등
 		IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
-		// 4. 검수 모드로 표시기 점등 
-		indSvc.indicatorsOn(batch, false, GwConstants.IND_ACTION_TYPE_INSPECT, doneJobList);
+		
+		// 4. 검수 모드로 표시기 점등
+		RuntimeIndServiceUtil.indOnByInspectJobList(batch, doneJobList);
+		
 		// 5. picking 모드로 표시기 점등
-		indSvc.indicatorsOn(batch, false, todoJobList);
+		if(ValueUtil.isNotEmpty(todoJobList)) {
+			String currentTimeStr = DateUtil.currentTimeStr();
+			for(JobInstance job : todoJobList) {
+				job.setPickStartedAt(currentTimeStr);
+				job.setPickingQty(job.getPickQty());
+			}
+			indSvc.indicatorsOn(batch, false, todoJobList);
+		}
+		
 		// 6. PDA, Tablet, KIOSK 등에 표시할 작업 리스트 리턴
-		return jobList;
+		return todoJobList;
 	}
 
 	/**
@@ -954,11 +958,10 @@ public class DasAssortService extends AbstractClassificationService implements I
 		} else {
 			// 3. 현재 작업 중인 투입 시퀀스에 대해서 분류가 완료 되었는지 여부 
 			boolean currentStationEnded = this.checkStationJobsEnd(job, job.getStationCd());
-			// 3.1 작업 스테이션이 완료되었다면  
+			// 3.1 작업 스테이션이 완료되었다면
 			if(currentStationEnded) {
 				// 3.2 현재 투입 정보가 완료되었는지 체크
-				boolean isSkuInputEndFlag = this.checkSkuInputEnd(job);
-				if(isSkuInputEndFlag) {
+				if(this.checkSkuInputEnd(job)) {
 					// 현재 투입 정보를 완료 처리
 					String query = "update job_inputs set status = :status where domain_id = :domainId and batch_id = :batchId and input_seq = :inputSeq";
 					Map<String, Object> condition = ValueUtil.newMap("domainId,batchId,inputSeq,status", job.getDomainId(), batch.getId(), job.getInputSeq(), JobInput.INPUT_STATUS_FINISHED);
@@ -1075,14 +1078,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 	 * @param message
 	 */
 	private void sendMessageToMobileDevice(JobBatch batch, String toDevice, String stationCd, String notiType, String message) {
-		String[] deviceList = null;
-		
-		if(toDevice == null) {
-			// toDevice가 없다면 사용 디바이스 리스트 조회
-			deviceList = DasBatchJobConfigUtil.getDeviceList(batch) == null ? null : DasBatchJobConfigUtil.getDeviceList(batch);
-		} else {
-			deviceList = new String[] { toDevice };
-		}
+		String[] deviceList = (toDevice == null) ? DasBatchJobConfigUtil.getDeviceList(batch) : new String[] { toDevice };
 		
 		if(deviceList != null) {
 			for(String device : deviceList) {

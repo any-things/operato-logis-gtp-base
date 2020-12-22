@@ -7,3 +7,4 @@ AND    BATCH_ID  = :batchId
 #if($equipCds)
 AND    EQUIP_CD  IN (:equipCds)  
 #end
+ 

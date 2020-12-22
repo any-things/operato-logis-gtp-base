@@ -99,6 +99,14 @@ public class DasJobStatusService extends AbstractJobStatusService {
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,equipCd,stationCd,status", batch.getDomainId(), batch.getId(), equipCd, stationCd, status);
 		return this.queryManager.selectPageBySql(sql.toString(), params, JobInput.class, page, limit);
 	}
+	
+	@Override
+	public Page<JobInput> paginateNotInputList(JobBatch batch, String equipCd, String stationCd, int page, int limit) {
+		String sql = this.dasQueryStore.getDasBatchNotInputListQuery();
+		stationCd = this.filterAllStation(stationCd);
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,equipCd,stationCd", batch.getDomainId(), batch.getId(), equipCd, stationCd);
+		return this.queryManager.selectPageBySql(sql.toString(), params, JobInput.class, page, limit);
+	}
 
 	@Override
 	public List<JobInstance> searchInputJobList(JobBatch batch, JobInput input, String stationCd) {

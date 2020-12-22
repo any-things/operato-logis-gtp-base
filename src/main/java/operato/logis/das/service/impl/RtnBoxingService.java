@@ -203,7 +203,7 @@ public class RtnBoxingService extends AbstractExecutionService implements IBoxin
 		BoxPack boxPack = ValueUtil.populate(batch, new BoxPack());
 		ValueUtil.populate(job, boxPack);
 		boxPack.setId(null);
-		boxPack.setStatus(BoxPack.BOX_STATUS_BOXED);
+		boxPack.setStatus(LogisConstants.JOB_STATUS_BOXED);
 		this.queryManager.insert(boxPack);
 		return boxPack;
 	}
@@ -269,17 +269,17 @@ public class RtnBoxingService extends AbstractExecutionService implements IBoxin
 	 */
 	public BoxItem newBoxItemBy(BoxPack boxPack, JobInstance job, Order order, int boxedQty) {
 		BoxItem item = new BoxItem();
-		item.setBoxPackId(boxPack.getId());
-		item.setDomainId(order.getDomainId());
-		item.setOrderId(order.getId());
-		item.setOrderNo(order.getOrderNo());
-		item.setOrderLineNo(order.getOrderLineNo());
-		item.setOrderDetailId(order.getOrderDetailId());
-		item.setComCd(order.getComCd());
-		item.setShopCd(order.getShopCd());
-		item.setSkuCd(order.getSkuCd());
-		item.setSkuNm(order.getSkuNm());
-		item.setPackType(order.getPackType());
+//		item.setBoxPackId(boxPack.getId());
+//		item.setDomainId(order.getDomainId());
+//		item.setOrderId(order.getId());
+//		item.setOrderNo(order.getOrderNo());
+//		item.setOrderLineNo(order.getOrderLineNo());
+//		item.setOrderDetailId(order.getOrderDetailId());
+//		item.setComCd(order.getComCd());
+//		item.setShopCd(order.getShopCd());
+//		item.setSkuCd(order.getSkuCd());
+//		item.setSkuNm(order.getSkuNm());
+//		item.setPackType(order.getPackType());
 		item.setPickedQty(boxedQty);
 		return item;
 	}

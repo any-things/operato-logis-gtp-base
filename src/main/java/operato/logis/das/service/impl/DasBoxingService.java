@@ -7,25 +7,28 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import operato.logis.das.query.store.DasQueryStore;
+import operato.logis.das.DasConfigConstants;
+import operato.logis.das.service.util.DasBatchJobConfigUtil;
+import xyz.anythings.base.LogisCodeConstants;
 import xyz.anythings.base.LogisConstants;
-import xyz.anythings.base.entity.BoxItem;
 import xyz.anythings.base.entity.BoxPack;
+import xyz.anythings.base.entity.Cell;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.JobConfigSet;
 import xyz.anythings.base.entity.JobInstance;
-import xyz.anythings.base.entity.Order;
 import xyz.anythings.base.entity.WorkCell;
 import xyz.anythings.base.event.box.UndoBoxingEvent;
+import xyz.anythings.base.event.classfy.ClassifyOutEvent;
 import xyz.anythings.base.service.api.IBoxingService;
+import xyz.anythings.base.service.impl.AbstractLogisService;
 import xyz.anythings.base.service.util.BatchJobConfigUtil;
+import xyz.anythings.gw.entity.Indicator;
 import xyz.anythings.sys.event.model.SysEvent;
-import xyz.anythings.sys.service.AbstractExecutionService;
+import xyz.anythings.sys.service.ICustomService;
 import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.elidom.dbist.dml.Query;
 import xyz.elidom.exception.server.ElidomRuntimeException;
-import xyz.elidom.sys.SysConstants;
 import xyz.elidom.sys.util.DateUtil;
 import xyz.elidom.sys.util.ThrowUtil;
 import xyz.elidom.util.ValueUtil;
@@ -36,11 +39,23 @@ import xyz.elidom.util.ValueUtil;
  * @author shortstop
  */
 @Component("dasBoxingService")
-public class DasBoxingService extends AbstractExecutionService implements IBoxingService {
+public class DasBoxingService extends AbstractLogisService implements IBoxingService {
 
-	@Autowired
-	private DasQueryStore dasQueryStore;
+	/**
+	 * 커스텀 서비스 - 풀 박스 전 처리
+	 */
+	private static final String DIY_DAS_BEFORE_FULLBOX = "diy-das-before-fullbox";
+	/**
+	 * 커스텀 서비스 - 풀 박스 후 처리
+	 */
+	private static final String DIY_DAS_AFTER_FULLBOX = "diy-das-after-fullbox";
 	
+	/**
+	 * 커스텀 서비스
+	 */
+	@Autowired
+	protected ICustomService customService;
+
 	@Override
 	public String getJobType() {
 		return LogisConstants.JOB_TYPE_DAS;
@@ -82,36 +97,50 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 
 	@Override
 	public Object assignBoxToCell(JobBatch batch, String cellCd, String boxId, Object... params) {
+		Long domainId = batch.getDomainId();
+		
 		// 1. Box 사용 여부 체크
 		this.isUsedBoxId(batch, boxId, true);
-				
-		// 2. 작업 WorkCell 조회
-		Long domainId = batch.getDomainId();
-		WorkCell workCell = AnyEntityUtil.findEntityBy(domainId, true, WorkCell.class, null, "batchId,cellCd", batch.getId(), cellCd);
-		workCell.setBoxId(boxId);
 		
-		// 3. 셀에 처리할 작업 인스턴스 정보 조회
-		Query condition = AnyOrmUtil.newConditionForExecution(domainId);
-		condition.addSelect("id");
-		condition.addFilter("batchId", batch.getId());
-		condition.addFilter("subEquipCd", cellCd);
-		condition.addFilter("status", LogisConstants.JOB_STATUS_WAIT);
-		JobInstance job = this.queryManager.selectByCondition(JobInstance.class, condition);
-		
-		// 4. 작업 인스턴스에 피킹 진행 중인 수량이 있다면 박스 매핑 안 됨.
-		if(job == null) {
-			// 셀에 박싱 처리할 작업이 없습니다.
-			throw ThrowUtil.newValidationErrorWithNoLog(true, "NO_JOBS_FOR_BOXING");
+		// 2. 이미 매핑되었는지 여부 체크 
+		String sql = "select cell_cd from work_cells where domain_id = :domainId and batch_id = :batchId and box_id = :boxId";
+		Map<String, Object> checkParams = ValueUtil.newMap("domainId,batchId,boxId", domainId, batch.getId(), boxId);
+		int count = this.queryManager.selectSizeBySql(sql, checkParams);
+		if(count > 0) {
+			throw ThrowUtil.newValidationErrorWithNoLog("박스 ID가 다른 셀에 이미 매핑되어 있습니다.");
 		}
 		
-		// 5. 클라이언트에 할당 정보 리턴
+		// 3. 셀 체크
+		Cell cell = AnyEntityUtil.findEntityBy(domainId, false, Cell.class, null, "domainId,equipCd,cellCd", batch.getDomainId(), batch.getEquipCd(), cellCd);
+		if(cell == null) {
+			throw ThrowUtil.newValidationErrorWithNoLog("랙 [" + batch.getEquipCd() + "]에 셀 [" + cellCd + "]이 존재하지 않습니다.");
+		}
+		
+		// 4. 워크 셀 체크
+		WorkCell workCell = AnyEntityUtil.findEntityBy(domainId, false, WorkCell.class, null, "batchId,cellCd", batch.getId(), cellCd);
+		if(workCell == null) {
+			throw ThrowUtil.newValidationErrorWithNoLog("작업배치 [" + batch.getId() + "]에 매핑된 셀이 존재하지 않습니다.");
+		}
+		
+		// 5. 셀에 박스 ID가 매핑되어 있는지 체크
+		if(ValueUtil.isNotEmpty(workCell.getBoxId())) {
+			throw ThrowUtil.newValidationErrorWithNoLog("셀 [" + cellCd + "]에 이미 매핑된 박스가 존재합니다.");
+		}
+		
+		// 6. 워크 셀에 박스 ID 설정
+		workCell.setBoxId(boxId);
+		
+		// 7. 박스 ID 매핑
+		this.queryManager.update(workCell, "boxId");
+		
+		// 8. 클라이언트에 할당 정보 리턴
 		return workCell;
 	}
 
 	@Override
 	public Object resetBoxToCell(JobBatch batch, String cellCd, Object... params) {
-		// 작업 WorkCell 조회 후 BoxId를 클리어 
-		WorkCell cell = AnyEntityUtil.findEntityBy(batch.getDomainId(), true, WorkCell.class, "batchId,cellCd", batch.getId(), cellCd);
+		// 작업 WorkCell 조회 후 BoxId를 클리어
+		WorkCell cell = AnyEntityUtil.findEntityBy(batch.getDomainId(), true, WorkCell.class, null, "batchId,cellCd", batch.getId(), cellCd);
 		cell.setBoxId(null);
 		this.queryManager.update(cell, "boxId", "updatedAt");
 		return cell;
@@ -123,11 +152,24 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 		if(ValueUtil.isEmpty(jobList)) {
 			throw ThrowUtil.newValidationErrorWithNoLog(true, "NO_JOBS_FOR_BOXING");
 		}
+		
+		// 2. 박스 선 매핑시 셀 - 박스 매핑이 안 되어 있는 경우 표시기 에러 표시
+		String boxMappingPoint = DasBatchJobConfigUtil.getCellBoxMappingPoint(batch);
+		if(ValueUtil.isEqualIgnoreCase(boxMappingPoint, DasConfigConstants.DAS_CELL_BOX_MAPPING_POINT_PREPROCESS) && ValueUtil.isEmpty(workCell.getBoxId())) {
+			this.serviceDispatcher.getIndicationService(batch).displayForNoBoxError(batch, jobList.get(0).getIndCd());
+			throw ThrowUtil.newValidationErrorWithNoLog(true, "CELL_HAS_NO_MAPPED_BOX");
+		}
+		
+		// 3. 커스텀 서비스 전 처리 호출 - 커스텀 서비스에서 박스 ID를 리턴하면 리턴 박스 ID를 새로운 박스 ID로 사용
+		Map<String, Object> customParams = ValueUtil.newMap("batch,workCell,jobList", batch, workCell, jobList);
+		Long domainId = batch.getDomainId();
+		Object objBoxId = this.customService.doCustomService(domainId, DIY_DAS_BEFORE_FULLBOX, customParams);
+		String boxId = ValueUtil.isNotEmpty(objBoxId) ? objBoxId.toString() : workCell.getBoxId();
 		String nowStr = DateUtil.currentTimeStr();
 		
-		// 2. 작업 정보 업데이트 
+		// 4. 작업 정보 업데이트 
 		for(JobInstance job : jobList) {
-			job.setBoxId(workCell.getBoxId());
+			job.setBoxId(boxId);
 			job.setBoxedAt(nowStr);
 			if(ValueUtil.isEmpty(job.getPickEndedAt())) {
 				job.setPickEndedAt(nowStr);
@@ -136,13 +178,21 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 		}
 		this.queryManager.updateBatch(jobList, "boxId", "boxedAt", "pickEndedAt", "status", "updatedAt");
 		
-		// 3. 박스 정보 생성
-		BoxPack boxPack = this.createNewBoxPack(batch, jobList, workCell);
+		// 5. 박스 정보 생성
+		Map<String, Object> condition = ValueUtil.newMap("domainId,batchId,boxId", domainId, batch.getId(), boxId);
+		BoxPack boxPack = this.queryManager.selectByCondition(BoxPack.class, condition);
 		
-		// 4. 박스 내품 생성
-		this.generateBoxItemsBy(boxPack, jobList);
+		// 6. 커스텀 서비스 후 처리 구현 (ex: 송장 출력, 실적 전송)
+		customParams.put("box", boxPack);
+		this.customService.doCustomService(domainId, DIY_DAS_AFTER_FULLBOX, customParams);
 		
-		// 5. 박스 리턴
+		// 7. WorkCell 업데이트
+		if(ValueUtil.isNotEmpty(workCell.getBoxId())) {
+			workCell.setBoxId(null);
+			this.queryManager.update(workCell, "boxId");
+		}
+		
+		// 8. 박스 리턴
 		return boxPack;
 	}
 
@@ -154,32 +204,36 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 	@Override
 	public List<BoxPack> batchBoxing(JobBatch batch) {
 		// 1. 작업 셀 리스트 조회
-		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
-		condition.addFilter("batchId", batch.getId());
-		condition.addFilter("status", SysConstants.IN, LogisConstants.CELL_JOB_STATUS_END_LIST);
-		condition.addFilter("activeFlag", true);
-		condition.addOrder("cellCd", true);
-		List<WorkCell> cellList = this.queryManager.selectList(WorkCell.class, condition);
+		Map<String, Object> params = ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId());
+		String sql = "select * from work_cells where domain_id = :domainId and batch_id = :batchId and (status is null or status != 'ENDED') and active_flag = true order by cell_cd";
+		List<WorkCell> cellList = this.queryManager.selectListBySql(sql, params, WorkCell.class, 0, 0);
 
-		// 2. 박스 팩 리스트 생성
-		List<BoxPack> boxPacks = new ArrayList<BoxPack>();
-		
-		// 3. 작업 셀 정보가 없으면 리턴
+		// 2. 작업 셀 정보가 없으면 리턴
 		if(ValueUtil.isEmpty(cellList)) {
-			return boxPacks;
+			return new ArrayList<BoxPack>(1);
 		}
 		
-		// 4. 배치 내 상태가 '피킹 시작' or '피킹 완료' 인 작업 데이터를 셀 별로 모두 조회
-		condition.removeFilter("activeFlag");
-		condition.setFilter("status", SysConstants.IN, LogisConstants.JOB_STATUS_PF);
-		condition.addFilter("pickedQty", ">=", 0);
+		// 3. 박스 팩 리스트 생성
+		List<BoxPack> boxPacks = new ArrayList<BoxPack>();
+		
+		// 4. 배치 내 박스 ID가 null이고 상태가 F(피킹 완료)인 작업 데이터를 셀 별로 모두 조회
+		params.put("status", LogisConstants.JOB_STATUS_FINISH);
+		sql = "select * from job_instances where domain_id = :domainId and batch_id = :batchId and status = :status and sub_equip_cd = :cellCd and (box_id is null or box_id = '') order by id";
 		
 		for(WorkCell cell : cellList) {
-			condition.setFilter("subEquipCd", cell.getCellCd());
-			List<JobInstance> jobList = this.queryManager.selectList(JobInstance.class, condition);
+			params.put("cellCd", cell.getCellCd());
+			List<JobInstance> jobList = this.queryManager.selectListBySql(sql, params, JobInstance.class, 1, 1);
 			
 			if(ValueUtil.isNotEmpty(jobList)) {
-				boxPacks.add(this.fullBoxing(batch, cell, jobList));
+				// 5. 셀 별 작업이 있다면 풀 박스 처리
+				JobInstance job = jobList.get(0);
+				ClassifyOutEvent outEvent = new ClassifyOutEvent(SysEvent.EVENT_STEP_ALONE, Indicator.class.getSimpleName(), LogisCodeConstants.CLASSIFICATION_ACTION_FULL, job, job.getPickedQty(), job.getPickedQty());
+				outEvent.setWorkCell(cell);
+				this.eventPublisher.publishEvent(outEvent);
+				
+				if(outEvent.getResult() != null) {
+					boxPacks.add((BoxPack)outEvent.getResult());
+				}
 			}
 		}
 		
@@ -192,99 +246,6 @@ public class DasBoxingService extends AbstractExecutionService implements IBoxin
 		UndoBoxingEvent event = new UndoBoxingEvent(SysEvent.EVENT_STEP_ALONE, box);
 		this.eventPublisher.publishEvent(event);
 		return box;
-	}
-
-	/**
-	 * BoxPack 생성
-	 * 
-	 * @param batch
-	 * @param jobList
-	 * @param cell
-	 * @return
-	 */
-	private BoxPack createNewBoxPack(JobBatch batch, List<JobInstance> jobList, WorkCell cell) {
-		// 박스 시퀀스 
-		int newBoxSeq = this.newBoxSeq(jobList.get(0));
-		// 박스 별 상품 수
-		Long skuCnt = jobList.stream().map(job -> job.getSkuCd()).distinct().count();
-		// 피킹 수량 합계
-		Integer pickedQty = jobList.stream().mapToInt(job -> job.getPickedQty()).sum();
-		// 박스 패킹 생성
-		BoxPack boxPack = ValueUtil.populate(batch, new BoxPack());
-		ValueUtil.populate(jobList.get(0), boxPack);
-		boxPack.setId(null);
-		boxPack.setStatus(BoxPack.BOX_STATUS_BOXED);
-		boxPack.setSkuQty(skuCnt.intValue());
-		boxPack.setPickQty(pickedQty);
-		boxPack.setPickedQty(pickedQty);
-		boxPack.setBoxSeq(newBoxSeq);
-		boxPack.setCreatorId(null);
-		boxPack.setUpdaterId(null);
-		boxPack.setCreatedAt(null);
-		boxPack.setUpdatedAt(null);
-		this.queryManager.insert(boxPack);
-		return boxPack;
-	}
-	
-	/**
-	 * 박스의 maxSeq 조회
-	 * 
-	 * @param job
-	 * @return
-	 */
-	private int newBoxSeq(JobInstance job) {
-		String sql = "select max(box_seq) as box_seq from box_packs where domain_id = :domainId and batch_id = :batchId and sub_equip_cd = :subEquipCd";
-		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,subEquipCd", job.getDomainId(), job.getBatchId(), job.getSubEquipCd());
-		Integer boxSeq = this.queryManager.selectBySql(sql, params, Integer.class);
-		return (boxSeq == null) ? 1 : boxSeq + 1;
-	}
-
-	/**
-	 * 작업 정보 기준으로 BoxItem 생성
-	 *
-	 * @param boxPack
-	 * @param jobList
-	 */
-	private void generateBoxItemsBy(BoxPack boxPack, List<JobInstance> jobList) {
-		// 1. 주문 정보 조회
-		JobInstance job = jobList.get(0);
-		job.setBoxPackId(boxPack.getId());
-		List<Order> sources = this.searchOrdersForBoxItems(jobList.get(0));
- 		
- 		// 2. 박스 내품 내역 
- 		List<BoxItem> boxItems = new ArrayList<BoxItem>(sources.size());
- 		 		
- 		// 3. 주문에 피킹 확정 수량 업데이트
-		for(Order source : sources) {
-			BoxItem boxItem = new BoxItem();
-			boxItem = ValueUtil.populate(source, boxItem);
-			boxItem.setId(null);
-			boxItem.setBoxPackId(boxPack.getId());
-			boxItem.setPickQty(source.getPickedQty());
-			boxItem.setPassFlag(false);
-			boxItem.setStatus(BoxPack.BOX_STATUS_BOXED);
-			boxItems.add(boxItem);
-			
-			int boxedQty = (source.getBoxedQty() == null ? 0 : source.getBoxedQty()) + source.getPickedQty();
-			source.setBoxedQty(boxedQty);
-		};
-		
-		// 4. 박스 내품 내역 생성
-		AnyOrmUtil.updateBatch(sources, 100, "boxedQty", "updatedAt");
-		AnyOrmUtil.insertBatch(boxItems, 100);
-	}
-	
-	/**
-	 * 박스 내품 내역을 생성하기 위해 주문 내역 정보를 조회
-	 * 
-	 * @param job
-	 * @return
-	 */
-	private List<Order> searchOrdersForBoxItems(JobInstance job) {
-		String sql = this.dasQueryStore.getSearchOrdersForBoxItemsQuery();
-		Map<String, Object> params = 
-				ValueUtil.newMap("domainId,batchId,comCd,classCd,boxPackId", job.getDomainId(), job.getBatchId(), job.getComCd(), job.getClassCd(), job.getBoxPackId());
-		return this.queryManager.selectListBySql(sql.toString(), params, Order.class, 0, 0);
 	}
 
 }

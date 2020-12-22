@@ -113,7 +113,7 @@ public class RtnBatchService extends AbstractLogisService implements IBatchServi
 		this.serviceDispatcher.getAssortService(batch).batchCloseAction(batch);
 		
 		// 8. 표시기 소등
-		this.serviceDispatcher.getIndicationService(batch).indicatorOffAll(batch);
+		this.serviceDispatcher.getIndicationService(batch).indicatorOffAll(batch, true);
 	}
 
 	@Override

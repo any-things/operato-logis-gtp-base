@@ -49,11 +49,6 @@ public class DasInstructionService extends AbstractInstructionService implements
 	 */
 	@Autowired
 	private DasQueryStore dasQueryStore;
-	/**
-	 * Service Dispatcher
-	 */
-	@Autowired
-	private LogisServiceDispatcher serviceDispatcher;
 	
 	@Override
 	public void targetClassing(JobBatch batch, Object... params) {

@@ -3,28 +3,16 @@ SELECT
 	BATCH_ID,
 	JOB_TYPE,
 	COM_CD,
-	
-	#if($cellSkuMapping)
-	'SKU_CD' AS CELL_ASSGN_TYPE,
-	SKU_CD AS CELL_ASSGN_CD,
-	SKU_NM AS CELL_ASSGN_NM,
+	:cellAssignType as CELL_ASSGN_TYPE,
+	CLASS_CD AS CELL_ASSGN_CD,
+	#if($cellAssignName)
+	<_cellAssignName_> AS CELL_ASSGN_NM,
 	#end
-	
-	#if($cellShopMapping)
-	'SHOP_CD' AS CELL_ASSGN_TYPE,
-	SHOP_CD AS CELL_ASSGN_CD,
-	SHOP_NM AS CELL_ASSGN_NM,
-	#end
-	
-	#if($cellOrderMapping)
-	'ORDER_NO' AS CELL_ASSGN_TYPE,
-	ORDER_NO AS CELL_ASSGN_CD,
-	#end
-	
 	EQUIP_TYPE,
 	EQUIP_CD,
 	EQUIP_NM,
 	SUB_EQUIP_CD,
+	BOX_CLASS_CD AS CLASS_CD,
 	COUNT(DISTINCT(SKU_CD)) AS SKU_QTY,
 	SUM(ORDER_QTY) AS TOTAL_PCS
 FROM 
@@ -37,24 +25,14 @@ GROUP BY
 	BATCH_ID,
 	JOB_TYPE,
 	COM_CD,
-	
-	#if($cellSkuMapping)
-	SKU_CD,
-	SKU_NM,
+	CLASS_CD,
+	#if($cellAssignName)
+	<_cellAssignName_>,
 	#end
-	
-	#if($cellShopMapping)
-	SHOP_CD,
-	SHOP_NM,
-	#end
-	
-	#if($cellOrderMapping)
-	ORDER_NO,
-	#end
-	
 	EQUIP_TYPE,
 	EQUIP_CD,
 	EQUIP_NM,
-	SUB_EQUIP_CD
+	SUB_EQUIP_CD,
+	BOX_CLASS_CD
 ORDER BY
 	TOTAL_PCS DESC, SKU_QTY DESC

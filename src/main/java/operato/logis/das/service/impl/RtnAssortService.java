@@ -26,6 +26,7 @@ import xyz.anythings.base.event.IClassifyRunEvent;
 import xyz.anythings.base.event.classfy.ClassifyErrorEvent;
 import xyz.anythings.base.event.classfy.ClassifyRunEvent;
 import xyz.anythings.base.model.Category;
+import xyz.anythings.base.model.CategoryItem;
 import xyz.anythings.base.service.api.IAssortService;
 import xyz.anythings.base.service.api.IBoxingService;
 import xyz.anythings.base.service.api.IIndicationService;
@@ -183,7 +184,7 @@ public class RtnAssortService extends AbstractClassificationService implements I
 
 	@Override
 	public void batchCloseAction(JobBatch batch) {
-		// 모든 셀에 남아 있는 잔량에 대해 풀 박싱 여부 조회 		
+		// 모든 셀에 남아 있는 잔량에 대해 풀 박싱 여부 조회
 		if(RtnBatchJobConfigUtil.isBatchFullboxWhenClosingEnabled(batch)) {
 			// 배치 풀 박싱
 			this.boxService.batchBoxing(batch);
@@ -191,9 +192,21 @@ public class RtnAssortService extends AbstractClassificationService implements I
 	}
 
 	@Override
+	@EventListener(classes = ICategorizeEvent.class, condition = "#event.jobType == 'RTN'")
 	public Category categorize(ICategorizeEvent event) {
-		// TODO 중분류 
-		return null;
+		String comCd = event.getComCd();
+		String skuCd = event.getInputCode();
+		List<String> batchIdList = event.getBatchIdList();
+		
+		Category category = new Category();
+		category.setSkuCd(event.getInputCode());
+		String sql = "select equip_type, equip_cd, equip_nm, sku_cd, sum(order_qty) as order_qty, sum(picked_qty) as picked_qty from orders where domain_id = :domainId and com_cd = :comCd and sku_cd = :skuCd and batch_id in (:batchIdList) group by equip_type, equip_cd, equip_nm, sku_cd";
+		Map<String, Object> params = ValueUtil.newMap("domainId,comCd,skuCd,batchIdList", event.getDomainId(), comCd, skuCd, batchIdList);
+		List<CategoryItem> items = this.queryManager.selectListBySql(sql, params, CategoryItem.class, 0, 0);
+		category.setItems(items);
+		event.setResult(category);
+		event.setExecuted(true);
+		return category;
 	}
 
 	@Override
@@ -458,7 +471,6 @@ public class RtnAssortService extends AbstractClassificationService implements I
 		return pickedQty;
 	}
 
-	@EventListener(classes = IClassifyOutEvent.class, condition = "#outEvent.jobType == 'RTN'")
 	@Override
 	public BoxPack fullBoxing(IClassifyOutEvent outEvent) {
 

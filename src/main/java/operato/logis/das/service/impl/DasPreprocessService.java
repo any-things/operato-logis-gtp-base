@@ -62,7 +62,7 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 			}
 		}
 		
-		// 3. 주문 가공 정보 조회  
+		// 3. 주문 가공 정보 조회
 		List<OrderPreprocess> preprocesses = this.queryManager.selectList(OrderPreprocess.class, query);
 		
 		// 4. 주문 가공 정보가 존재하지 않는다면 주문 정보로 생성
@@ -147,7 +147,7 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 			assignRackByManual(batch, equipCds, items);
 		}
 		
-		return items.size(); 
+		return items.size();
 	}
 	
 	@Override
@@ -380,26 +380,39 @@ public class DasPreprocessService extends AbstractExecutionService implements IP
 
 	@Override
 	public int generatePreprocess(JobBatch batch, Object... params) {
-		// 1. 주문 가공 데이터 삭제  
+		// 1. 주문 가공 데이터 삭제
 		this.deletePreprocess(batch);
 		
 		// 2. 주문 가공 데이터를 생성하기 위해 주문 데이터를 조회
 		String cellMappingField = StageJobConfigUtil.getPickingClassCodeField(batch.getStageCd(), batch.getJobType());
-		boolean cellSkuMapping = ValueUtil.isEmpty(cellMappingField) ? true : cellMappingField.toLowerCase().startsWith("sku") ? true : false;
+		boolean cellSkuMapping = ValueUtil.isEmpty(cellMappingField) ? false : cellMappingField.toLowerCase().startsWith("sku") ? true : false;
 		boolean cellShopMapping = ValueUtil.isEmpty(cellMappingField) ? true : cellMappingField.toLowerCase().startsWith("shop") ? true : false;
-		boolean cellOrderMapping = ValueUtil.isEmpty(cellMappingField) ? true : cellMappingField.toLowerCase().startsWith("order") ? true : false;
 		
-		String sql = this.dasQueryStore.getDasGeneratePreprocessQuery();
-		Map<String, Object> condition = ValueUtil.newMap("domainId,batchId,cellSkuMapping,cellShopMapping,cellOrderMapping", batch.getDomainId(), batch.getId(), cellSkuMapping, cellShopMapping, cellOrderMapping);
+		// 3. 주문에 CLASS_CD가 비어 있다면 채운다.
+		String sql = "UPDATE ORDERS SET CLASS_CD = " + cellMappingField + " WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId AND CLASS_CD IS NULL";
+		Map<String, Object> condition = ValueUtil.newMap("domainId,batchId,cellAssignType", batch.getDomainId(), batch.getId(), cellMappingField);
+		this.queryManager.executeBySql(sql, condition);
+		
+		// 4. 주문 가공 데이터 조회
+		sql = this.dasQueryStore.getDasGeneratePreprocessQuery();
+		if(cellSkuMapping) {
+			condition.put("cellAssignName", "SKU_NM");
+			sql = sql.replaceAll("<_cellAssignName_>", "SKU_NM");
+		}
+		
+		if(cellShopMapping) {
+			condition.put("cellAssignName", "SHOP_NM");
+			sql = sql.replaceAll("<_cellAssignName_>", "SHOP_NM");
+		}
 		List<OrderPreprocess> preprocessList = this.queryManager.selectListBySql(sql, condition, OrderPreprocess.class, 0, 0);
 
-		// 3. 주문 가공 데이터를 추가
+		// 5. 주문 가공 데이터를 추가
 		int generatedCount = ValueUtil.isNotEmpty(preprocessList) ? preprocessList.size() : 0;
 		if(generatedCount > 0) {
-			this.queryManager.insertBatch(preprocessList);
+			AnyOrmUtil.insertBatch(preprocessList, 1000);
 		}
 
-		// 4. 결과 리턴
+		// 6. 결과 리턴
 		return generatedCount;
 	}
 	

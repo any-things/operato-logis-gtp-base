@@ -46,6 +46,12 @@ public class RtnJobStatusService extends AbstractJobStatusService {
 		// TODO Auto-generated method stub
 		return null;
 	}
+	
+	@Override
+	public Page<JobInput> paginateNotInputList(JobBatch batch, String equipCd, String stationCd, int page, int limit) {
+		// TODO Auto-generated method stub
+		return null;
+	}
 
 	@Override
 	public List<JobInstance> searchInputJobList(JobBatch batch, JobInput input, String stationCd) {
@@ -81,6 +87,6 @@ public class RtnJobStatusService extends AbstractJobStatusService {
 		Map<String, Object> params = ValueUtil.newMap("domainId,id", domainId, jobInstanceId);
 		List<JobInstance> jobList = this.queryManager.selectListBySql(sql, params, JobInstance.class, 1, 1);
 		return ValueUtil.isEmpty(jobList) ? null : jobList.get(0);
-	}	
+	}
 
 }

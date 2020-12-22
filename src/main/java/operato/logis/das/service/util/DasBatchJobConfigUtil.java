@@ -35,7 +35,7 @@ public class DasBatchJobConfigUtil extends BatchJobConfigUtil {
 	 * @return
 	 */
 	public static String getCellBoxMappingPoint(JobBatch batch) {
-		// job.das.cell-boxid.mapping.point						
+		// job.das.cell-boxid.mapping.point
 		return getConfigValue(batch, DasConfigConstants.DAS_CELL_BOXID_MAPPING_POINT, DasConfigConstants.DAS_CELL_BOX_MAPPING_POINT_PREPROCESS);
 	}
 	

@@ -48,6 +48,15 @@ public class DasQueryStore extends AbstractQueryStore {
 	}
 	
 	/**
+	 * 배치 그룹 전체 작업 진행율 조회 쿼리
+	 *  
+	 * @return
+	 */
+	public String getTotalBatchProgressRateQuery() {
+		return this.getQueryByPath("batch/TotalBatchProgressRate");
+	}
+	
+	/**
 	 * 배치 Max 작업 차수 조회
 	 *
 	 * @return
@@ -152,7 +161,7 @@ public class DasQueryStore extends AbstractQueryStore {
 	 * @return
 	 */
 	public String getDasGenerateJobsByInstructionQuery() {
-		return this.getQueryByPath("instruction/GenerateJobs");
+		return this.getQueryByPath("instruction/DasGenerateJobs");
 	}
 	
 	/**
@@ -237,6 +246,15 @@ public class DasQueryStore extends AbstractQueryStore {
 	}
 	
 	/**
+	 * 표시기 END, ENDED 재점등을 위한 쿼리 
+	 * 
+	 * @return
+	 */
+	public String getRestoreEndIndicators() {
+		return this.getQueryByPath("pick/DasRestoreEndIndicators");
+	}
+	
+	/**
 	 * 중분류 쿼리 
 	 * 
 	 * @return
@@ -270,6 +288,15 @@ public class DasQueryStore extends AbstractQueryStore {
 	 */
 	public String getDasBatchJobInputListQuery() {
 		return this.getQueryByPath("pick/DasBatchJobInputList");
+	}
+	
+	/**
+	 * 작업 배치 내 미투입 리스트 조회 (For KIOSK)
+	 * 
+	 * @return
+	 */
+	public String getDasBatchNotInputListQuery() {
+		return this.getQueryByPath("pick/DasBatchNotInputList");
 	}
 	
 	/**
