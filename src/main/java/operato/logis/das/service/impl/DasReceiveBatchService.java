@@ -59,7 +59,7 @@ public class DasReceiveBatchService extends AbstractQueryService {
 	}
 	
 	/**
-	 * 배치 수신 서머리 데이터 생성 
+	 * 배치 수신 서머리 데이터 생성
 	 * 
 	 * @param receipt
 	 * @param jobType
@@ -67,14 +67,14 @@ public class DasReceiveBatchService extends AbstractQueryService {
 	 * @return
 	 */
 	private BatchReceipt createReadyToReceiveData(BatchReceipt receipt, String jobType, Object ... params) {
-		// 1. 대기 상태 이거나 진행 중인 수신이 있는지 확인		
+		// 1. 대기 상태 이거나 진행 중인 수신이 있는지 확인
 		BatchReceipt runBatchReceipt = this.checkRunningOrderReceipt(receipt, jobType);
 		if(runBatchReceipt != null) return runBatchReceipt;
 		
 		// 2. WMS IF 테이블에서 수신 대상 데이터 확인
 		List<BatchReceiptItem> receiptItems = this.getWmfIfToReceiptItems(receipt);
 		
-		// 3 수신 아이템 데이터 생성 
+		// 3 수신 아이템 데이터 생성
 		for(BatchReceiptItem item : receiptItems) {
 			item.setBatchId(LogisBaseUtil.newReceiptJobBatchId(receipt.getDomainId()));
 			item.setBatchReceiptId(receipt.getId());
@@ -107,14 +107,14 @@ public class DasReceiveBatchService extends AbstractQueryService {
 	 * @return
 	 */
 	private BatchReceipt checkRunningOrderReceipt(BatchReceipt receipt, String jobType) {
-		Map<String,Object> paramMap = ValueUtil.newMap("domainId,comCd,areaCd,stageCd,jobDate,status,jobType", 
+		Map<String,Object> paramMap = ValueUtil.newMap("domainId,comCd,areaCd,stageCd,jobDate,status,jobType",
 				receipt.getDomainId(), receipt.getComCd(), receipt.getAreaCd(), receipt.getStageCd(), receipt.getJobDate(),
 				ValueUtil.newStringList(LogisConstants.COMMON_STATUS_WAIT, LogisConstants.COMMON_STATUS_RUNNING), jobType);
 		 
 		BatchReceipt receiptData = 
 				this.queryManager.selectBySql(this.batchQueryStore.getBatchReceiptOrderTypeStatusQuery(), paramMap, BatchReceipt.class);
 		
-		// 대기 중 또는 진행 중인 수신 정보 리턴 
+		// 대기 중 또는 진행 중인 수신 정보 리턴
 		if(receiptData != null) {
 			receiptData.setItems(AnyEntityUtil.searchDetails(receipt.getDomainId(), BatchReceiptItem.class, "batchReceiptId", receiptData.getId()));
 			return receiptData;
@@ -140,18 +140,6 @@ public class DasReceiveBatchService extends AbstractQueryService {
 		}
 		 
 	}
-	
-	/*@Async
-	public void asyncStartToReceive(BatchReceipt receipt, BatchReceiptItem item) {
-		Domain domain = Domain.find(receipt.getDomainId());
-		DomainContext.setCurrentDomain(domain);
-		
-		try {
-			this.startToReceiveData(receipt, item);
-		} finally {
-			DomainContext.unsetAll();
-		}
-	}*/
 	
 	/**
 	 * 배치, 작업 수신

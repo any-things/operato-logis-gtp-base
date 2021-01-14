@@ -52,11 +52,11 @@ public class DasInstructionService extends AbstractInstructionService implements
 	
 	@Override
 	public void targetClassing(JobBatch batch, Object... params) {
-		Map<String,Object> paramMap = ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId());
+		Map<String,Object> condition = ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId());
 		// 대상 분류 
-		this.queryManager.executeBySql("call sp_order_classification(:domainId,:batchId)", paramMap);
+		this.queryManager.executeBySql("call sp_order_classification(:domainId,:batchId)", condition);
 		// 회차 분류 
-		this.queryManager.executeBySql("call sp_order_optimization(:domainId,:batchId)", paramMap);
+		this.queryManager.executeBySql("call sp_order_optimization(:domainId,:batchId)", condition);
 	}
 	
 	@Override
