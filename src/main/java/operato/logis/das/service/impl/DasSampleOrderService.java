@@ -61,7 +61,8 @@ public class DasSampleOrderService {
 		this.checkCreatableOrder(orderSampler);
 		JobBatch batch = this.newSampleJobBatch(orderSampler);
 		this.createSampleBatchOrders(batch, orderSampler);
-		this.createJobBatch(batch, orderSampler);
+		this.createJobBatch(batch, orderSampler, event.isCreateBatchFlag());
+		event.setBatch(batch);
 	}
 	
 	/**
@@ -147,8 +148,9 @@ public class DasSampleOrderService {
 	 * 
 	 * @param batch
 	 * @param sampler
+	 * @param createBatchFlag
 	 */
-	private void createJobBatch(JobBatch batch, OrderSampler sampler) {
+	private void createJobBatch(JobBatch batch, OrderSampler sampler, boolean createBatchFlag) {
 		
 		// 배치 수량 정보 저장 
 		String sql = "select sum(order_qty) as parent_order_qty, count(distinct sku_cd) as parent_sku_qty from orders where domain_id = :domainId and batch_id = :batchId";
@@ -159,7 +161,10 @@ public class DasSampleOrderService {
 		batch.setParentSkuQty(countData.getParentSkuQty());
 		batch.setBatchSkuQty(countData.getParentSkuQty());
 		batch.setStatus(JobBatch.STATUS_WAIT);
-		this.queryManger.insert(batch);
+		
+		if(createBatchFlag) {
+			this.queryManger.insert(batch);
+		}
 		
 		// 샘플 정보 상태 완료 처리
 		sampler.setStatus(LogisConstants.JOB_STATUS_FINISH);
