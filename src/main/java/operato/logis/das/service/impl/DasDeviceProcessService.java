@@ -409,7 +409,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		try {
 			// 인쇄 옵션 정보 추출
 			Printer printer = this.queryManager.select(Printer.class, printEvent.getPrinterId());
-			printer = (printer == null) ? this.queryManager.selectByCondition(Printer.class, ValueUtil.newMap("domainId,printerCd", domain.getId(), printEvent.getPrinterId())) : printer;
+			printer = (printer == null) ? this.queryManager.selectByCondition(Printer.class, ValueUtil.newMap("domainId,printerCd", domainId, printEvent.getPrinterId())) : printer;
 			String agentUrl = printer.getPrinterAgentUrl();
 			String printerName = printer.getPrinterDriver();
 			
@@ -419,7 +419,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 			
 		} catch (Exception e) {
 			// 예외 처리
-			ErrorEvent errorEvent = new ErrorEvent(domain.getId(), "PRINT_LABEL_ERROR", e, null, true, true);
+			ErrorEvent errorEvent = new ErrorEvent(domain.getId(), "DAS_PRINT_LABEL_ERROR", e, null, true, true);
 			this.eventPublisher.publishEvent(errorEvent);
 			
 		} finally {
