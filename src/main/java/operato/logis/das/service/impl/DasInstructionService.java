@@ -43,6 +43,31 @@ import xyz.elidom.util.ValueUtil;
  */
 @Component("dasInstructionService")
 public class DasInstructionService extends AbstractInstructionService implements IInstructionService {
+	
+	/**
+	 * 커스텀 서비스 - 작업 지시 전 처리
+	 */
+	private static final String DIY_PRE_BATCH_START = "diy-das-pre-batch-start";
+	/**
+	 * 커스텀 서비스 - 작업 지시 후 처리
+	 */
+	private static final String DIY_POST_BATCH_START = "diy-das-post-batch-start";
+	/**
+	 * 커스텀 서비스 - 배치 병합 전 처리
+	 */
+	private static final String DIY_PRE_MERGE_BATCH = "diy-das-pre-merge-batch";
+	/**
+	 * 커스텀 서비스 - 배치 병합 후 처리
+	 */
+	private static final String DIY_POST_MERGE_BATCH = "diy-das-post-merge-batch";
+	/**
+	 * 커스텀 서비스 - 작업 지시 취소 전 처리
+	 */
+	private static final String DIY_PRE_CANCEL_BATCH = "diy-das-pre-cancel-batch";
+	/**
+	 * 커스텀 서비스 - 작업 지시 취소 후 처리
+	 */
+	private static final String DIY_POST_CANCEL_BATCH = "diy-das-post-cancel-batch";
 
 	/**
 	 * 출고 작업 쿼리 스토어
@@ -111,19 +136,22 @@ public class DasInstructionService extends AbstractInstructionService implements
 	 * @return
 	 */
 	private int beforeMergeBatch(JobBatch mainBatch, JobBatch newBatch, Object... params) {
-		// 1. 메인 배치 상태 체크
+		// 1. 병합 전 커스텀 처리
+		this.customService.doCustomService(mainBatch.getDomainId(), DIY_PRE_MERGE_BATCH, ValueUtil.newMap("mainBatch,newBatch", mainBatch, newBatch));
+		
+		// 2. 메인 배치 상태 체크
 		if(ValueUtil.isNotEqual(mainBatch.getStatus(), JobBatch.STATUS_RUNNING)) {
 			// 메인 작업배치가 진행 중인 상태에서만 병합 가능합니다
 			throw ThrowUtil.newValidationErrorWithNoLog(true, "ALLOWED_MERGE_WHEN_MAIN_BATCH_RUN");
 		}
 		
-		// 2. 병합 배치 상태 체크
+		// 3. 병합 배치 상태 체크
 		if(ValueUtil.isNotEqual(newBatch.getStatus(), JobBatch.STATUS_WAIT)) {
 			// 병합 대상 작업배치가 주문가공대기 상태에서만 가능합니다
 			throw ThrowUtil.newValidationErrorWithNoLog(true, "ALLOWED_MERGE_WHEN_TARGET_BATCH_WAIT");
 		}
 		
-		// 3. 메인 배치에 현재 점등이 되어 있는 작업이 있는지 체크
+		// 4. 메인 배치에 현재 점등이 되어 있는 작업이 있는지 체크
 		Map<String, Object> qParams = ValueUtil.newMap("domainId,batchId,status,equipType,equipCd", mainBatch.getDomainId(), mainBatch.getId(), LogisConstants.JOB_STATUS_PICKING, mainBatch.getEquipType(), mainBatch.getEquipCd());
 		int indOnCount = this.queryManager.selectSize(JobInstance.class, qParams);
 		
@@ -131,22 +159,22 @@ public class DasInstructionService extends AbstractInstructionService implements
 			throw ThrowUtil.newValidationErrorWithNoLog(true, "NOT_ALLOWED_MERGE_MAIN_BATCH_IND_ON");
 		}
 		
-		// 4. 메인 배치에 완료 셀 + 빈 셀 개수 카운트
+		// 5. 메인 배치에 완료 셀 + 빈 셀 개수 카운트
 		String sql = this.dasQueryStore.getDasEmptyCellCountForMergeQuery();
 		int mainBatchEmptyCells = this.queryManager.selectBySql(sql, qParams, Integer.class);
 		
-		// 5. 병합 배치에는 있고 메인 배치에는 없는 신규 상품 수 카운트
+		// 6. 병합 배치에는 있고 메인 배치에는 없는 신규 상품 수 카운트
 		qParams.put("mergeBatchId", newBatch.getId());
 		sql = this.dasQueryStore.getDasNewCellCountForMergeQuery();
 		int newSkuCount = this.queryManager.selectBySql(sql, qParams, Integer.class);
 		
-		// 6. 신규 상품 개수가 완료 + 빈 셀 카운트 보다 크면 병합 불가
+		// 7. 신규 상품 개수가 완료 + 빈 셀 카운트 보다 크면 병합 불가
 		if(newSkuCount > mainBatchEmptyCells) {
 			// 병합하려는 배치의 신규 상품 수량이 빈 셀 보다 많아서 병합이 불가합니다.
 			throw ThrowUtil.newValidationErrorWithNoLog(true, "NOT_ALLOWED_MERGE_MANY_SKU");
 		}
 		
-		// 7. 병합할 신규 셀 수
+		// 8. 병합할 신규 셀 수
 		return newSkuCount;
 	}
 	
@@ -241,7 +269,10 @@ public class DasInstructionService extends AbstractInstructionService implements
 			indSvc.indicatorOff(domainId, mainBatch.getStageCd(), cell.getIndCd());
 		}
 		
-		// 3. 작업 병합 이벤트 전송
+		// 3. 병합 후 처리 커스텀 서비스 호출
+		this.customService.doCustomService(mainBatch.getDomainId(), DIY_POST_MERGE_BATCH, ValueUtil.newMap("mainBatch,newBatch", mainBatch, newBatch));
+		
+		// 4. 작업 병합 이벤트 전송
 		this.publishMergingEvent(SysEvent.EVENT_STEP_AFTER, mainBatch, newBatch, null);
 	}
 
@@ -264,6 +295,11 @@ public class DasInstructionService extends AbstractInstructionService implements
 	 * @return
 	 */
 	protected boolean beforeCancelInstructionBatch(JobBatch batch) {
+		
+		// 1. 배치 취소 전 처리 커스텀 서비스 호출
+		this.customService.doCustomService(batch.getDomainId(), DIY_PRE_CANCEL_BATCH, ValueUtil.newMap("batch", batch));
+		
+		// 2. 하나라도 처리되었다면 취소 불가
 		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 		condition.addFilter("batchId", batch.getId());
 		condition.addFilter(new Filter("pickedQty", OrmConstants.GREATER_THAN, 0));
@@ -302,7 +338,7 @@ public class DasInstructionService extends AbstractInstructionService implements
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId", domainId, batch.getId());
 		String sql = "delete from work_cells where domain_id = :domainId and batch_id = :batchId";
 		int count = this.queryManager.executeBySql(sql, params);
-				
+		
 		// 5. 작업 실행 데이터 삭제
 		this.queryManager.deleteList(JobInstance.class, params);
 		
@@ -321,7 +357,10 @@ public class DasInstructionService extends AbstractInstructionService implements
 			BeanUtil.get(LogisServiceDispatcher.class).getIndicationService(batch).indicatorOffAll(batch);
 		}
 		
-		// 2. 작업 지시 취소 이벤트 전송
+		// 2. 배치 취소 후 처리 커스텀 서비스 호출
+		this.customService.doCustomService(batch.getDomainId(), DIY_POST_CANCEL_BATCH, ValueUtil.newMap("batch", batch));
+		
+		// 3. 작업 지시 취소 이벤트 전송
 		this.publishInstructionCancelEvent(SysEvent.EVENT_STEP_AFTER, batch, null);
 	}
 	
@@ -333,7 +372,10 @@ public class DasInstructionService extends AbstractInstructionService implements
 	 * @return
 	 */
 	protected boolean beforeInstructBatch(JobBatch batch, List<String> equipIdList) {
-		// 배치 상태가 작업 지시 상태인지 체크
+		// 1. 배치 시작 전 처리 커스텀 서비스 호출
+		this.customService.doCustomService(batch.getDomainId(), DIY_PRE_BATCH_START, ValueUtil.newMap("batch", batch));
+
+		// 2. 배치 상태가 작업 지시 상태인지 체크
 		if(ValueUtil.isNotEqual(batch.getStatus(), JobBatch.STATUS_READY)) {
 			// '작업 지시 대기' 상태가 아닙니다
 			throw ThrowUtil.newValidationErrorWithNoLog(MessageUtil.getTerm("terms.text.is_not_wait_state", "JobBatch status is not 'READY'"));
@@ -350,19 +392,28 @@ public class DasInstructionService extends AbstractInstructionService implements
 	 * @return
 	 */
 	protected int doInstructBatch(JobBatch batch, List<String> regionList) {
-		// 1. 배치 내 할당 안 된 주문 가공 정보, 주문 정보를 새로운 배치로 잘라낸다.
+		// 1. 표시기 소등
+		this.serviceDispatcher.getIndicationService(batch).indicatorOffAll(batch);
+		
+		// 2. 배치 내 할당 안 된 주문 가공 정보, 주문 정보를 새로운 배치로 잘라낸다.
 		List<OrderPreprocess> preprocesses = this.cutoffNotAssignedOrders(batch);
 		
-		// 2. 주문 가공 정보로 부터 호기 리스트 조회
+		// 3. 주문 가공 정보로 부터 호기 리스트 조회
 		Long domainId = batch.getDomainId();
 		List<String> equipCdList = AnyValueUtil.filterValueListBy(preprocesses, "equipCd");
+		
+		// 4. 랙이 없다면 배치의 랙을 추가
+		if(ValueUtil.isEmpty(equipCdList)) {
+			equipCdList = ValueUtil.toList(batch.getEquipCd());
+		}
+		
 		Query condition = AnyOrmUtil.newConditionForExecution(domainId);
-		condition.addSelect("id", "rackCd", "rackNm", "status", "batchId");
+		condition.addSelect("id", "rackCd", "rackNm", "rackType", "status", "batchId");
 		condition.addFilter("rackCd", "in", equipCdList);
 		condition.addOrder("rackCd", false);
 		List<Rack> rackList = this.queryManager.selectList(Rack.class, condition);
 
-		// 3. 랙 중에 현재 작업 중인 랙이 있는지 체크 
+		// 5. 랙 중에 현재 작업 중인 랙이 있는지 체크 
 		for(Rack rack : rackList) {
 			if(ValueUtil.isNotEmpty(rack.getBatchId())) {
 				// 랙에 다른 작업 배치가 할당되어 있습니다
@@ -370,25 +421,25 @@ public class DasInstructionService extends AbstractInstructionService implements
 			}
 		}
 		
-		// 4. 랙 리스트를 돌면서 배치 생성, 주문 가공 정보 업데이트, 주문 정보 업데이트, 작업 정보 생성, WorkCell 정보 생성, 호기 정보 업데이트 처리
+		// 6. 랙 리스트를 돌면서 배치 생성, 주문 가공 정보 업데이트, 주문 정보 업데이트, 작업 정보 생성, WorkCell 정보 생성, 호기 정보 업데이트 처리
 		int rackCount = rackList.size();
 		for(int i = 0 ; i < rackCount ; i++) {
-			// 4-1. 랙 추출
+			// 6-1. 랙 추출
 			Rack rack = rackList.get(i);
-			// 4-2. 랙 별 주문 가공 데이터 추출
+			// 6-2. 랙 별 주문 가공 데이터 추출
 			List<OrderPreprocess> equipPreprocesses = AnyValueUtil.filterListBy(preprocesses, "equipCd", rack.getRackCd());
-			// 4-3. 마지막 번째 설비는 메인 배치, 그 외 설비는 새로운 배치를 생성하여 
+			// 6-3. 마지막 번째 설비는 메인 배치, 그 외 설비는 새로운 배치를 생성하여 
 			String batchId = (i != rackCount - 1) ? LogisBaseUtil.newJobBatchId(domainId, batch.getStageCd()) : batch.getId();
 			JobBatch newBatch = this.sliceBatch(batch, batchId, rack, equipPreprocesses);
-			// 4-4. 각 배치 별로 작업지시 처리
+			// 6-4. 각 배치 별로 작업지시 처리
 			this.instructBySlicedBatch(newBatch, rack, equipPreprocesses);
 		}
 		
-		// 5. 주문 가공 정보 배치 ID 업데이트
+		// 7. 주문 가공 정보 배치 ID 업데이트
 		AnyOrmUtil.updateBatch(preprocesses, 100, "batchId");
-		// 6. 랙 정보 배치 ID 업데이트
+		// 8. 랙 정보 배치 ID 업데이트
 		AnyOrmUtil.updateBatch(rackList, 100, "status", "batchId", "jobType");
-		// 7. 결과 건수 리턴
+		// 9. 결과 건수 리턴
 		return preprocesses.size();
 	}
 	
@@ -403,7 +454,10 @@ public class DasInstructionService extends AbstractInstructionService implements
 		// 1. 배치 시작 액션 처리 
 		this.serviceDispatcher.getAssortService(batch).batchStartAction(batch);
 
-		// 2. 작업 지시 이벤트 전송
+		// 2. 배치 시작 후 처리 커스텀 서비스 호출
+		this.customService.doCustomService(batch.getDomainId(), DIY_POST_BATCH_START, ValueUtil.newMap("batch", batch));
+		
+		// 3. 작업 지시 이벤트 전송
 		this.publishInstructionEvent(SysEvent.EVENT_STEP_AFTER, batch, equipIdList);
 		return true;
 	}

@@ -48,6 +48,7 @@ import xyz.anythings.gw.entity.Indicator;
 import xyz.anythings.gw.event.GatewayInitEvent;
 import xyz.anythings.gw.service.IndConfigProfileService;
 import xyz.anythings.gw.service.mq.model.device.DeviceCommand;
+import xyz.anythings.sys.service.ICustomService;
 import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.anythings.sys.util.AnyValueUtil;
@@ -68,6 +69,12 @@ import xyz.elidom.util.ValueUtil;
  */
 @Component("dasAssortService")
 public class DasAssortService extends AbstractClassificationService implements IAssortService {
+	
+	/**
+	 * 커스텀 서비스
+	 */
+	@Autowired
+	private ICustomService customService;
 	/**
 	 * 표시기 설정 프로파일 서비스
 	 */
@@ -103,10 +110,6 @@ public class DasAssortService extends AbstractClassificationService implements I
 	public Object boxCellMapping(JobBatch batch, String cellCd, String boxId) {
 		return this.boxService.assignBoxToCell(batch, cellCd, boxId);
 	}
-	
-//	private IndConfigSet getIndConfigSet(String batchId) {
-//		return this.indConfigSetService.getConfigSet(batchId);
-//	}
 	
 	@EventListener(classes = GatewayInitEvent.class, condition = "#gwInitEvent.eventStep == 2")
 	public void handleGatewayInitReport(GatewayInitEvent gwInitEvent) {
@@ -244,6 +247,9 @@ public class DasAssortService extends AbstractClassificationService implements I
 		
 		// 3. 작업 설정 셋 제거 
 		this.serviceDispatcher.getConfigSetService().clearConfigSet(batch.getId());
+		
+		// 4. 커스텀 서비스 호출
+		this.customService.doCustomService(batch.getDomainId(), "diy-after-das-batch-close", ValueUtil.newMap("batch", batch));
 	}
 
 	@Override
