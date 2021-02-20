@@ -197,7 +197,7 @@ public class DasBatchService extends AbstractLogisService implements IBatchServi
 		// 3. 동일 일자, 동일 차수, 동일 호기에 할당된 작업 배치가 있는지 체크
 		String sql = "select id from job_batches where domain_id = :domainId and job_date = :jobDate and job_seq = :jobSeq and equip_type = :equipType and equip_cd = :equipCd and status in (:statuses)";
 		Map<String, Object> params = ValueUtil.newMap("domainId,jobDate,jobSeq,equipType,equipCd,statuses", batch.getDomainId(), batch.getJobDate(), batch.getJobSeq(), batch.getEquipType(), toEquipCd, ValueUtil.toList(JobBatch.STATUS_WAIT, JobBatch.STATUS_READY));
-		if(this.queryManager.selectSize(JobBatch.class, params) > 0) {
+		if(this.queryManager.selectSizeBySql(sql, params) > 0) {
 			throw ThrowUtil.newValidationErrorWithNoLog("동일 일자, 차수, 호기에 할당된 작업배치가 이미 존재합니다.");
 		}
 		
@@ -238,20 +238,22 @@ public class DasBatchService extends AbstractLogisService implements IBatchServi
 		condition.addFilter("equipCd", toEquipCd);
 		List<Cell> toCellList = this.queryManager.selectList(Cell.class, condition);
 		
-		// 4. 주문 가공 / 주문의 From Cell과 To Cell을 그대로 이동
+		// 4. 주문 가공 / 주문의 From Cell과 To Cell을 그대로 이동, TODO 아래 코드 체크 필요
 		String newBatchId = batch.getId().replace(LogisConstants.DASH + batch.getEquipCd(), LogisConstants.DASH + toEquipCd);
 		String preprocessSql = "UPDATE ORDER_PREPROCESSES SET BATCH_ID = :newBatchId, EQUIP_CD = :toEquipCd, EQUIP_NM = :toEquipNm, CLASS_CD = :toEquipCd, SUB_EQUIP_CD = :toCellCd WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId AND SUB_EQUIP_CD = :fromCellCd";
 		String orderSql = "UPDATE ORDERS SET BATCH_ID = :newBatchId, EQUIP_CD = :toEquipCd, EQUIP_NM = :toEquipNm, SUB_EQUIP_CD = :toCellCd WHERE DOMAIN_ID = :domainId AND BATCH_ID = :batchId AND SUB_EQUIP_CD = :fromCellCd";
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId,newBatchId,toEquipCd,toEquipNm", domainId, batch.getId(), newBatchId, toEquipCd, toEquipNm);
 		
 		for(int i = 0 ; i < fromCellList.size() ; i++) {
-			Cell fromCell = fromCellList.get(i);
-			Cell toCell = toCellList.get(i);
-			params.put("fromCellCd", fromCell.getCellCd());
-			params.put("toCellCd", toCell.getCellCd());
+			if(toCellList.size() > i) {
+				Cell fromCell = fromCellList.get(i);
+				Cell toCell = toCellList.get(i);
+				params.put("fromCellCd", fromCell.getCellCd());
+				params.put("toCellCd", toCell.getCellCd());
 			
-			this.queryManager.executeBySql(preprocessSql, params);
-			this.queryManager.executeBySql(orderSql, params);
+				this.queryManager.executeBySql(preprocessSql, params);
+				this.queryManager.executeBySql(orderSql, params);
+			}
 		}
 		
 		// 5. 작업 배치 변경

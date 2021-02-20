@@ -223,6 +223,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 			
 			// 게이트웨이 별 표시기에 셀 코드 표시 처리
 			for(Gateway gw : gwList) {
+				// TODO 아래 코드 오류 -> 수정 필요
 				Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
 				condition.addFilter("gwCd", gw.getGwCd());
 				condition.addOrder("indSeq", true);
