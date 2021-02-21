@@ -109,11 +109,11 @@ public class DasBatchService extends AbstractLogisService implements IBatchServi
 		// 6. JobBatch 상태 변경
 		this.updateJobBatchFinished(batch, new Date());
 		
-		// 7. 분류 서비스 배치 마감 API 호출 
+		// 7. 분류 서비스 배치 마감 API 호출
 		this.serviceDispatcher.getAssortService(batch).batchCloseAction(batch);
 		
 		// 8. 표시기 소등
-		this.serviceDispatcher.getIndicationService(batch).indicatorOffAll(batch, true);
+		// this.serviceDispatcher.getIndicationService(batch).indicatorOffAll(batch, true);
 	}
 
 	@Override
