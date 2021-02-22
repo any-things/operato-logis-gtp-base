@@ -42,7 +42,7 @@ FROM (
 		WHERE
 			DOMAIN_ID = :domainId
 			AND BATCH_ID = :batchId
-			AND STATUS NOT IN ('A', 'W')
+			AND STATUS IN ('O', 'E', 'R')
 		GROUP BY
 			BATCH_ID) B
 		
