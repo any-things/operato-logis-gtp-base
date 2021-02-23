@@ -14,10 +14,10 @@ import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.entity.Order;
 import xyz.anythings.base.event.main.BatchCloseEvent;
-import xyz.anythings.base.model.BatchProgressRate;
 import xyz.anythings.base.service.api.IBatchService;
 import xyz.anythings.base.service.impl.AbstractLogisService;
 import xyz.anythings.sys.event.model.SysEvent;
+import xyz.anythings.sys.service.ICustomService;
 import xyz.anythings.sys.util.AnyOrmUtil;
 import xyz.elidom.dbist.dml.Filter;
 import xyz.elidom.dbist.dml.Query;
@@ -35,6 +35,19 @@ import xyz.elidom.util.ValueUtil;
 @Component("dasBatchService")
 public class DasBatchService extends AbstractLogisService implements IBatchService {
 
+	/**
+	 * 커스텀 서비스 - 작업 완료 전 처리
+	 */
+	private static final String DIY_PRE_BATCH_STOP = "diy-das-pre-batch-stop";
+	/**
+	 * 커스텀 서비스 - 작업 완료 후 처리
+	 */
+	private static final String DIY_POST_BATCH_STOP = "diy-das-post-batch-stop";
+	/**
+	 * 커스텀 서비스
+	 */
+	@Autowired
+	protected ICustomService customService;
 	/**
 	 * DAS 쿼리 스토어
 	 */
@@ -84,6 +97,9 @@ public class DasBatchService extends AbstractLogisService implements IBatchServi
 				throw ThrowUtil.newValidationErrorWithNoLog(msg);
 			}
 		}
+		
+		// 7. 커스텀 서비스 호출
+		this.customService.doCustomService(batch.getDomainId(), DIY_PRE_BATCH_STOP, ValueUtil.newMap("batch", batch));
 	}
 
 	@Override
@@ -112,8 +128,8 @@ public class DasBatchService extends AbstractLogisService implements IBatchServi
 		// 7. 분류 서비스 배치 마감 API 호출
 		this.serviceDispatcher.getAssortService(batch).batchCloseAction(batch);
 		
-		// 8. 표시기 소등
-		// this.serviceDispatcher.getIndicationService(batch).indicatorOffAll(batch, true);
+		// 8. 커스텀 서비스 호출
+		this.customService.doCustomService(batch.getDomainId(), DIY_POST_BATCH_STOP, ValueUtil.newMap("batch", batch));
 	}
 
 	@Override
@@ -166,18 +182,14 @@ public class DasBatchService extends AbstractLogisService implements IBatchServi
 		// 배치 마감을 위한 물량 주문 대비 최종 실적 요약 정보 조회
 		String query = this.dasQueryStore.getDasBatchResultSummaryQuery();
 		Map<String, Object> params = ValueUtil.newMap("domainId,batchId", batch.getDomainId(), batch.getId());
-		BatchProgressRate finalResult = this.queryManager.selectBySql(query, params, BatchProgressRate.class);
+		JobBatch finalResult = this.queryManager.selectBySql(query, params, JobBatch.class);
 		
 		// 작업 배치에 최종 결과 업데이트
-		batch.setResultPcs(finalResult.getActualPcs());
-		batch.setResultOrderQty(finalResult.getActualOrder());
-		batch.setResultBoxQty(finalResult.getActualSku());
 		batch.setUph(finalResult.getUph());
-		batch.setProgressRate(finalResult.getRateOrder());
-		batch.setEquipRuntime(finalResult.getRateSku());
+		batch.setEquipRuntime(finalResult.getEquipRuntime());
 		batch.setStatus(JobBatch.STATUS_END);
 		batch.setFinishedAt(finishedAt);
-		this.queryManager.update(batch, "resultOrderQty", "resultBoxQty", "resultPcs", "progressRate", "uph", "equipRuntime", "status", "finishedAt");
+		this.queryManager.update(batch, "uph", "equipRuntime", "status", "finishedAt");
 	}
 
 	@Override
