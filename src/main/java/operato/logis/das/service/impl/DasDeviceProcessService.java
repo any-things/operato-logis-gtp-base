@@ -99,8 +99,8 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		boolean includeTotal = reqParams.containsKey("includeTotal") ? ValueUtil.isEqualIgnoreCase(reqParams.get("includeTotal").toString(), LogisConstants.TRUE_STRING) : false;
 		boolean includeRack = reqParams.containsKey("includeRack") ? ValueUtil.isEqualIgnoreCase(reqParams.get("includeRack").toString(), LogisConstants.TRUE_STRING) : false;
 		
-		Long domainId = event.getDomainId();
 		// 1. 작업 배치 조회
+		Long domainId = event.getDomainId();
 		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(domainId, equipType, equipCd);
 		// 2. 호기내 작업 배치 ID로 작업 배치 조회
 		JobBatch batch = equipBatchSet.getBatch();
@@ -142,12 +142,12 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 	@Order(Ordered.LOWEST_PRECEDENCE)
 	public void restoreEndList(DeviceProcessRestEvent event) {
 		// 1. 작업 배치 조회
-		Long domainId = event.getDomainId();
 		Map<String, Object> reqParams = event.getRequestParams();
 		String equipType = reqParams.get("equipType").toString();
 		String equipCd = reqParams.get("equipCd").toString();
 		
 		// 2. 현재 작업 배치 조회
+		Long domainId = event.getDomainId();
 		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(domainId, equipType, equipCd);
 		JobBatch batch = equipBatchSet.getBatch();
 		IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
@@ -191,7 +191,8 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		String skuCd = reqParams.get("skuCd").toString();
 		
 		// 2. 작업 배치
-		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(Domain.currentDomainId(), equipType, equipCd);
+		Long domainId = event.getDomainId();
+		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(domainId, equipType, equipCd);
 		JobBatch batch = equipBatchSet.getBatch();
 		
 		// 3. 이벤트 처리 결과 셋팅
@@ -305,7 +306,8 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		String skuCd = reqParams.get("skuCd").toString();
 		
 		// 2. 작업 배치 조회
-		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(Domain.currentDomainId(), equipType, equipCd);
+		Long domainId = event.getDomainId();
+		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(domainId, equipType, equipCd);
 		JobBatch batch = equipBatchSet.getBatch();
 		
 		// 3. 이벤트 처리 결과 셋팅
@@ -334,9 +336,9 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		// 1. 파라미터 처리
 		Map<String, Object> reqParams = event.getRequestParams();
 		String equipCd = ValueUtil.toString(reqParams.get("equipCd"));
-		Long domainId = Domain.currentDomainId();
 		
 		// 2. 작업 배치 조회
+		Long domainId = event.getDomainId();
 		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(domainId, LogisConstants.EQUIP_TYPE_RACK, equipCd);
 		JobBatch batch = equipBatchSet.getBatch();
 		this.serviceDispatcher.getBoxingService(batch).batchBoxing(batch);
@@ -361,28 +363,28 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		String invoiceId = ValueUtil.toString(reqParams.get("invoiceId"));
 		String cellCd = ValueUtil.toString(reqParams.get("cellCd"));
 		String printerId = ValueUtil.toString(reqParams.get("printerId"));
-		Long domainId = Domain.currentDomainId();
 		
 		// 1. 작업 배치 조회
+		Long domainId = event.getDomainId();
 		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(domainId, LogisConstants.EQUIP_TYPE_RACK, equipCd);
 		JobBatch batch = equipBatchSet.getBatch();
 		
 		// 2. 박스 정보 조회
-		BoxPack box = AnyEntityUtil.findEntityBy(domainId, false, BoxPack.class, "domainId,boxId", domainId, boxId);
+		BoxPack box = AnyEntityUtil.findEntityBy(domainId, false, BoxPack.class, "*", "boxId", boxId);
 		
 		if(box == null) {
-			box = AnyEntityUtil.findEntityBy(domainId, false, BoxPack.class, "domainId,invoiceId", domainId, invoiceId);
+			box = AnyEntityUtil.findEntityBy(domainId, false, BoxPack.class, "*", "invoiceId", invoiceId);
 		}
 		
 		// 3. 프린터 ID 조회
 		if(ValueUtil.isEmpty(printerId)) {
-			printerId = AnyEntityUtil.findItemOneColumn(domainId, true, String.class, Cell.class, "printer_cd", "domainId,cellCd", domainId, cellCd);
+			printerId = AnyEntityUtil.findItemOneColumn(domainId, true, String.class, Cell.class, "printer_cd", "cellCd", cellCd);
 		}
 		
 		// 4. 프린트 이벤트 전송
 		String labelTemplate = DasBatchJobConfigUtil.getInvoiceLabelTemplate(batch);
 		Map<String, Object> printParams = ValueUtil.newMap("box", box);
-		PrintEvent printEvent = new PrintEvent(batch.getDomainId(), batch.getJobType(), printerId, labelTemplate, printParams);
+		PrintEvent printEvent = new PrintEvent(domainId, batch.getJobType(), printerId, labelTemplate, printParams);
 		this.eventPublisher.publishEvent(printEvent);
 		
 		// 5. 이벤트 결과 처리

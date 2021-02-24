@@ -782,11 +782,11 @@ public class DasAssortService extends AbstractClassificationService implements I
 		// 4. 모바일 알람 이벤트 전송
 		if(th != null) {
 			String cellCd = (errorEvent.getWorkCell() != null) ? errorEvent.getWorkCell().getCellCd() : (errorEvent.getJobInstance() != null ? errorEvent.getJobInstance().getSubEquipCd() : null);
-			String stationCd = ValueUtil.isNotEmpty(cellCd) ? 
-				AnyEntityUtil.findEntityBy(errorEvent.getDomainId(), false, String.class, "stationCd", "domainId,cellCd", errorEvent.getDomainId(), cellCd) : null;
+			Cell c = ValueUtil.isNotEmpty(cellCd) ? 
+				AnyEntityUtil.findEntityBy(errorEvent.getDomainId(), false, Cell.class, "stationCd", "cellCd", cellCd) : null;
 			
 			String errMsg = (th.getCause() == null) ? th.getMessage() : th.getCause().getMessage();
-			this.sendMessageToMobileDevice(errorEvent.getJobBatch(), isIndicatorDevice ? null : device, stationCd, "error", errMsg);
+			this.sendMessageToMobileDevice(errorEvent.getJobBatch(), isIndicatorDevice ? null : device, (c != null ? c.getStationCd() : null), "error", errMsg);
 		}
 
 		// 5. 예외 발생
