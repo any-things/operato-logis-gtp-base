@@ -199,6 +199,11 @@ public class DasIndicationService extends AbstractLogisService implements IDasIn
 			indReqSvc.requestIndListOff(domainId, batch.getStageCd(), indCdList, true);
 		}
 	}
+	
+	@Override
+	public void indicatorListOff(Long domainId, String stageCd, String gwPath, List<String> indCdList) {
+		this.indicatorDispatcher.getIndicatorRequestServiceByStage(domainId, stageCd).requestIndListOff(domainId, stageCd, gwPath, indCdList, true);
+	}
 
 	@Override
 	public void indicatorOff(Long domainId, String stageCd, String gwPath, String indCd) {

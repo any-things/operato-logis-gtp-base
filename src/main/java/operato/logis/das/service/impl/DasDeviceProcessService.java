@@ -1,6 +1,8 @@
 package operato.logis.das.service.impl;
 
-import java.util.Date;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -40,15 +42,11 @@ import xyz.anythings.sys.model.BaseResponse;
 import xyz.anythings.sys.service.AbstractExecutionService;
 import xyz.anythings.sys.service.ICustomService;
 import xyz.anythings.sys.util.AnyEntityUtil;
-import xyz.anythings.sys.util.AnyOrmUtil;
-import xyz.elidom.dbist.dml.Query;
 import xyz.elidom.sys.entity.Domain;
-import xyz.elidom.sys.entity.User;
 import xyz.elidom.sys.rest.DomainController;
 import xyz.elidom.sys.system.context.DomainContext;
 import xyz.elidom.sys.util.ThrowUtil;
 import xyz.elidom.sys.util.ValueUtil;
-import xyz.elidom.util.DateUtil;
 
 /**
  * 출고용 장비로 부터의 요청을 처리하는 서비스 
@@ -57,10 +55,10 @@ import xyz.elidom.util.DateUtil;
  */
 @Component("dasDeviceProcessService")
 public class DasDeviceProcessService extends AbstractExecutionService {
-	/**
-	 * 커스텀 서비스 - 출고 검수 후 처리
-	 */
-	private static final String DIY_DAS_AFTER_INSPECTION = "diy-das-after-inspection";
+//	/**
+//	 * 커스텀 서비스 - 출고 검수 후 처리
+//	 */
+//	private static final String DIY_DAS_AFTER_INSPECTION = "diy-das-after-inspection";
 	/**
 	 * 커스텀 서비스
 	 */
@@ -137,7 +135,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 	}
 	
 	/*****************************************************************************************************
-	 * 										표시기 점/소등 A P I
+	 * 											표시기 점/소등 A P I
 	 *****************************************************************************************************
 	/**
 	 * 완료 상태 표시기 END 표시 복원
@@ -152,25 +150,23 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		Map<String, Object> reqParams = event.getRequestParams();
 		String equipType = reqParams.get("equipType").toString();
 		String equipCd = reqParams.get("equipCd").toString();
+		
+		// 2. 현재 작업 배치 조회
 		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(domainId, equipType, equipCd);
 		JobBatch batch = equipBatchSet.getBatch();
 		IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
 		
-		// 2. 배치 소속 게이트웨이 조회
-		String sql = "select gw_cd, gw_nm from gateways where id in (select distinct(g.id) as gw_id from gateways g inner join indicators i on g.domain_id = i.domain_id and g.gw_cd = i.gw_cd inner join cells c on i.domain_id = c.domain_id and i.ind_cd = c.ind_cd where g.domain_id = :domainId and c.equip_type = :equipType and c.equip_cd = :equipCd)";
-		Map<String, Object> params = ValueUtil.newMap("domainId,equipType,equipCd", Domain.currentDomainId(), equipType, equipCd);
-		List<Gateway> gwList = this.queryManager.selectListBySql(sql, params, Gateway.class, 0, 0);
-		sql = this.dasQueryStore.getRestoreEndIndicators();
+		// 3. 배치 소속 게이트웨이 조회
+		List<Gateway> gwList = indSvc.searchGateways(batch);
+		String sql = this.dasQueryStore.getRestoreEndIndicators();
 		
-		// 3. 작업 배치, 게이트웨이에 걸린 셀 중에 ENDING, ENDED 상태인 셀을 모두 조회
+		// 4. 작업 배치, 게이트웨이에 걸린 셀 중에 ENDING, ENDED 상태인 셀을 모두 조회
 		for(Gateway gw : gwList) {
-			Map<String, Object> condition = ValueUtil.newMap("domainId,batchId,stageCd,jobType,equipCd", domainId, batch.getId(), batch.getStageCd(), batch.getJobType(), equipCd);
-			condition.put("gwPath", gw.getGwNm());
-			condition.put("gwCd", gw.getGwCd());
-			condition.put("indStatuses", LogisConstants.CELL_JOB_STATUS_END_LIST);
+			Map<String, Object> condition = 
+				ValueUtil.newMap("domainId,batchId,stageCd,jobType,equipCd,gwPath,gwCd,indStatuses", domainId, batch.getId(), batch.getStageCd(), batch.getJobType(), equipCd, gw.getGwNm(), gw.getGwCd(), LogisConstants.CELL_JOB_STATUS_END_LIST);
 			List<JobInstance> jobList = this.queryManager.selectListBySql(sql, condition, JobInstance.class, 0, 0);
 		
-			// 4. ENDING, ENDED 조회한 정보로 모두 점등
+			// 5. ENDING, ENDED 조회한 정보로 모두 점등
 			if(ValueUtil.isNotEmpty(jobList)) {
 				for(JobInstance job : jobList) {
 					indSvc.indicatorOnForPickEnd(job, ValueUtil.isEqualIgnoreCase(job.getStatus(), LogisConstants.CELL_JOB_STATUS_ENDED));
@@ -180,7 +176,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 	}
 	
 	/*****************************************************************************************************
-	 * 										D A S 투 입 A P I
+	 * 											D A S 투 입 A P I
 	 *****************************************************************************************************
 	/**
 	 * DAS 투입 순번 작업 리스트 조회
@@ -217,6 +213,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 	 * @param event
 	 * @return
 	 */ 
+	@SuppressWarnings("unchecked")
 	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/cancel/input/sku', 'das')")
 	@Order(Ordered.LOWEST_PRECEDENCE)
 	public void cancelInputSku(DeviceProcessRestEvent event) {
@@ -226,7 +223,8 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		String equipCd = reqParams.get("equipCd").toString();
 		
 		// 2. 작업 배치
-		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(Domain.currentDomainId(), equipType, equipCd);
+		Long domainId = event.getDomainId();
+		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(domainId, equipType, equipCd);
 		JobBatch batch = equipBatchSet.getBatch();
 		
 		// 3. 마지막 투입 상품 조회
@@ -237,36 +235,56 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		
 		// 4. 작업 현황 조회
 		Map<String, Object> condition = ValueUtil.newMap("inputSeq", batch.getLastInputSeq());
-		List<JobInstance> jobList = this.serviceDispatcher.getJobStatusService(batch).searchJobList(batch, condition);
+		List<JobInstance> jobList = this.serviceDispatcher.getJobStatusService(batch).searchPickingJobList(batch, condition);
+		
+		// 5. 소등 대상 게이트웨이 & 표시기 리스트 추출
+		Map<String, Object> gwIndMap = new HashMap<String, Object>();
 		for(JobInstance job : jobList) {
-			if(ValueUtil.isNotEqual(job.getStatus(), LogisConstants.JOB_STATUS_INPUT)) {
-				throw ThrowUtil.newValidationErrorWithNoLog("분류 처리된 상품이 있어서 투입 취소할 수 없습니다.");
+			if(job.isDoneJob()) {
+				throw ThrowUtil.newValidationErrorWithNoLog("분류 처리된 상품이 있어서 투입 취소할 수 없습니다. 개별 취소로 처리하세요.");
+			} else {
+				if(ValueUtil.isEqualIgnoreCase(job.getStatus(), LogisConstants.JOB_STATUS_PICKING)) {
+					String gwPath = job.getGwPath();
+					boolean isContainsGw = gwIndMap.containsKey(gwPath);
+					List<String> indList = isContainsGw ? (List<String>)gwIndMap.get(gwPath) : new ArrayList<String>();
+					if(!isContainsGw) gwIndMap.put(gwPath, indList);
+					indList.add(job.getIndCd());
+				}
 			}
 		}
 		
-		// 5. 투입 삭제 처리
-		condition = ValueUtil.newMap("domainId,batchId,inputSeq", batch.getDomainId(), batch.getId(), batch.getLastInputSeq());
+		// 6. 투입 삭제 처리
+		condition = ValueUtil.newMap("domainId,batchId,inputSeq", domainId, batch.getId(), batch.getLastInputSeq());
 		JobInput jobInput = this.queryManager.selectByCondition(JobInput.class, condition);
 		if(jobInput == null) {
 			throw ThrowUtil.newValidationErrorWithNoLog("마지막 투입 시퀀스의 투입 정보가 없습니다.");
+		} else {
+			this.queryManager.delete(jobInput);
 		}
 		
-		String comCd = jobInput.getComCd();
-		String skuCd = jobInput.getSkuCd();
-		this.queryManager.delete(jobInput);
-		
-		// 6. 작업 현황 업데이트
+		// 7. 작업 현황 업데이트
 		String sql = "update job_instances set status = :status, picking_qty = 0, input_at = null, pick_started_at = null, input_seq = 0 where domain_id = :domainId and batch_id = :batchId and input_seq = :inputSeq and com_cd = :comCd and sku_cd = :skuCd";
 		condition.put("status", LogisConstants.JOB_STATUS_WAIT);
-		condition.put("comCd", comCd);
-		condition.put("skuCd", skuCd);
+		condition.put("comCd", jobInput.getComCd());
+		condition.put("skuCd", jobInput.getSkuCd());
 		this.queryManager.executeBySql(sql, condition);
 		
-		// 7. 배치 마지막 시퀀스 업데이트
+		// 8. 배치 마지막 시퀀스 업데이트
 		batch.setLastInputSeq(batch.getLastInputSeq() - 1);
 		this.queryManager.update(batch, "lastInputSeq");
 		
-		// 8. 이벤트 처리 결과 셋팅
+		// 9. 표시기 소등
+		IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
+		if(ValueUtil.isNotEmpty(gwIndMap)) {
+			Iterator<String> gwIter = gwIndMap.keySet().iterator();
+			while(gwIter.hasNext()) {
+				String gwPath = gwIter.next();
+				List<String> indList = (List<String>)gwIndMap.get(gwPath);
+				indSvc.indicatorListOff(domainId, batch.getStageCd(), gwPath, indList);
+			}
+		}
+		
+		// 10. 이벤트 처리 결과 셋팅
 		event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, null));
 		event.setExecuted(true);
 	}
@@ -301,125 +319,6 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		
 		// 4. 이벤트 처리 결과 셋팅
 		event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, result));
-		event.setExecuted(true);
-	}
-	
-	/*****************************************************************************************************
-	 *											출 고 검 수 A P I
-	 *****************************************************************************************************
-	
-	/**
-	 * 출고 검수를 위한 검수 정보 조회 - 박스 ID
-	 * 
-	 * @param event
-	 */
-	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/inspection/find_by_box', 'das')")
-	@Order(Ordered.LOWEST_PRECEDENCE)
-	public void findByBox(DeviceProcessRestEvent event) {
-		// 1. 파라미터
-		Map<String, Object> params = event.getRequestParams();
-		String equipCd = params.get("equipCd").toString();
-		String equipType = params.get("equipType").toString();
-		String boxId = params.get("boxId").toString();
-		
-		// 2. 설비 코드로 현재 진행 중인 작업 배치 및 설비 정보 조회
-		EquipBatchSet equipBatchSet = LogisServiceUtil.findBatchByEquip(event.getDomainId(), equipType, equipCd);
-		JobBatch batch = equipBatchSet.getBatch();
-
-		// 3. 검수 정보 조회
-		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
-		condition.addFilter("batchId", batch.getId());
-		condition.addFilter("boxId", boxId);
-		BoxPack boxPack = this.queryManager.selectByCondition(BoxPack.class, condition);
-		if(boxPack != null) {
-			boxPack.searchBoxItems();
-		}
-
-		// 4. 이벤트 처리 결과 셋팅
-		event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, boxPack));
-		event.setExecuted(true);
-	}
-	
-	/**
-	 * 출고 검수를 위한 검수 정보 조회 - 송장 번호
-	 * 
-	 * @param event
-	 */
-	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/inspection/find_by_invoice', 'das')")
-	@Order(Ordered.LOWEST_PRECEDENCE)
-	public void findByInvoice(DeviceProcessRestEvent event) {
-		// 1. 파라미터
-		Map<String, Object> params = event.getRequestParams();
-		String equipCd = params.get("equipCd").toString();
-		String equipType = params.get("equipType").toString();
-		String invoiceId = params.get("invoiceId").toString();
-		
-		// 2. 설비 코드로 현재 진행 중인 작업 배치 및 설비 정보 조회
-		EquipBatchSet equipBatchSet = LogisServiceUtil.findBatchByEquip(event.getDomainId(), equipType, equipCd);
-		JobBatch batch = equipBatchSet.getBatch();
-		
-		// 3. 검수 정보 조회
-		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
-		condition.addFilter("batchId", batch.getId());
-		condition.addFilter("invoiceId", invoiceId);
-		BoxPack boxPack = this.queryManager.selectByCondition(BoxPack.class, condition);
-		if(boxPack != null) {
-			boxPack.searchBoxItems();
-		}
-		
-		// 4. 이벤트 처리 결과 셋팅
-		event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, boxPack));
-		event.setExecuted(true);
-	}
-	
-	/**
-	 * 출고 검수 완료
-	 * 
-	 * @param event
-	 */
-	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/inspection/finish', 'das')")
-	@Order(Ordered.LOWEST_PRECEDENCE)
-	public void finishInspection(DeviceProcessRestEvent event) {
-		// 1. 파라미터 
-		Map<String, Object> params = event.getRequestParams();
-		String equipCd = params.get("equipCd").toString();
-		String equipType = params.get("equipType").toString();
-		String classCd = params.get("classCd").toString();
-		String boxId = params.get("boxId").toString();
-		String printerId = params.get("printerId").toString();
-		
-		// 2. 설비 코드로 현재 진행 중인 작업 배치 및 설비 정보 조회
-		Long domainId = event.getDomainId();
-		EquipBatchSet equipBatchSet = LogisServiceUtil.findBatchByEquip(domainId, equipType, equipCd);
-		JobBatch batch = equipBatchSet.getBatch();
-		
-		// 3. 박스 조회
-		BoxPack box = AnyEntityUtil.findEntityBy(event.getDomainId(), false, BoxPack.class, null, "batchId,boxId", batch.getId(), boxId);
-		box.setStatus(LogisConstants.JOB_STATUS_EXAMINATED);
-		box.setManualInspStatus(LogisConstants.PASS_STATUS);
-		box.setManualInspectedAt(DateUtil.currentTimeStr());
-		
-		// 4. 작업 정보 검수 완료 처리
-		Map<String, Object> updateParams = ValueUtil.newMap("status,manualInspStatus,nowStr,now,updaterId,domainId,batchId,classCd,boxId",
-				LogisConstants.JOB_STATUS_EXAMINATED,
-				LogisConstants.PASS_STATUS,
-				DateUtil.currentTimeStr(),
-				new Date(),
-				User.currentUser().getId(),
-				domainId,
-				batch.getId(),
-				classCd,
-				boxId
-			);
-		
-		String sql = "update job_instances set inspected_qty = pick_qty, status = :status, manual_insp_status = :manualInspStatus, manual_inspected_at = :nowStr, updater_id = :updaterId, updated_at = :now where domain_id = :domainId and batch_id = :batchId and class_cd = :classCd and box_id = :boxId";
-		this.queryManager.executeBySql(sql, updateParams);
-		
-		// 5. 커스텀 서비스 호출 (ex: 송장 인쇄, 박스 실적 전송 등 처리)
-		this.customService.doCustomService(domainId, DIY_DAS_AFTER_INSPECTION, ValueUtil.newMap("batch,box,printerId", batch, box, printerId));
-
-		// 6. 이벤트 처리 결과 셋팅
-		event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, box));
 		event.setExecuted(true);
 	}
 	
@@ -534,5 +433,124 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 			DomainContext.unsetAll();
 		}
 	}
+
+	/*****************************************************************************************************
+	 *											출 고 검 수 A P I
+	 *****************************************************************************************************
+	
+//	/**
+//	 * 출고 검수를 위한 검수 정보 조회 - 박스 ID
+//	 * 
+//	 * @param event
+//	 */
+//	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/inspection/find_by_box', 'das')")
+//	@Order(Ordered.LOWEST_PRECEDENCE)
+//	public void findByBox(DeviceProcessRestEvent event) {
+//		// 1. 파라미터
+//		Map<String, Object> params = event.getRequestParams();
+//		String equipCd = params.get("equipCd").toString();
+//		String equipType = params.get("equipType").toString();
+//		String boxId = params.get("boxId").toString();
+//		
+//		// 2. 설비 코드로 현재 진행 중인 작업 배치 및 설비 정보 조회
+//		EquipBatchSet equipBatchSet = LogisServiceUtil.findBatchByEquip(event.getDomainId(), equipType, equipCd);
+//		JobBatch batch = equipBatchSet.getBatch();
+//
+//		// 3. 검수 정보 조회
+//		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
+//		condition.addFilter("batchId", batch.getId());
+//		condition.addFilter("boxId", boxId);
+//		BoxPack boxPack = this.queryManager.selectByCondition(BoxPack.class, condition);
+//		if(boxPack != null) {
+//			boxPack.searchBoxItems();
+//		}
+//
+//		// 4. 이벤트 처리 결과 셋팅
+//		event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, boxPack));
+//		event.setExecuted(true);
+//	}
+//	
+//	/**
+//	 * 출고 검수를 위한 검수 정보 조회 - 송장 번호
+//	 * 
+//	 * @param event
+//	 */
+//	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/inspection/find_by_invoice', 'das')")
+//	@Order(Ordered.LOWEST_PRECEDENCE)
+//	public void findByInvoice(DeviceProcessRestEvent event) {
+//		// 1. 파라미터
+//		Map<String, Object> params = event.getRequestParams();
+//		String equipCd = params.get("equipCd").toString();
+//		String equipType = params.get("equipType").toString();
+//		String invoiceId = params.get("invoiceId").toString();
+//		
+//		// 2. 설비 코드로 현재 진행 중인 작업 배치 및 설비 정보 조회
+//		EquipBatchSet equipBatchSet = LogisServiceUtil.findBatchByEquip(event.getDomainId(), equipType, equipCd);
+//		JobBatch batch = equipBatchSet.getBatch();
+//		
+//		// 3. 검수 정보 조회
+//		Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
+//		condition.addFilter("batchId", batch.getId());
+//		condition.addFilter("invoiceId", invoiceId);
+//		BoxPack boxPack = this.queryManager.selectByCondition(BoxPack.class, condition);
+//		if(boxPack != null) {
+//			boxPack.searchBoxItems();
+//		}
+//		
+//		// 4. 이벤트 처리 결과 셋팅
+//		event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, boxPack));
+//		event.setExecuted(true);
+//	}
+//	
+//	/**
+//	 * 출고 검수 완료
+//	 * 
+//	 * @param event
+//	 */
+//	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/inspection/finish', 'das')")
+//	@Order(Ordered.LOWEST_PRECEDENCE)
+//	public void finishInspection(DeviceProcessRestEvent event) {
+//		// 1. 파라미터 
+//		Map<String, Object> params = event.getRequestParams();
+//		String equipCd = params.get("equipCd").toString();
+//		String equipType = params.get("equipType").toString();
+//		String classCd = params.get("classCd").toString();
+//		String boxId = params.get("boxId").toString();
+//		String printerId = params.get("printerId").toString();
+//		
+//		// 2. 설비 코드로 현재 진행 중인 작업 배치 및 설비 정보 조회
+//		Long domainId = event.getDomainId();
+//		EquipBatchSet equipBatchSet = LogisServiceUtil.findBatchByEquip(domainId, equipType, equipCd);
+//		JobBatch batch = equipBatchSet.getBatch();
+//		
+//		// 3. 박스 조회
+//		BoxPack box = AnyEntityUtil.findEntityBy(event.getDomainId(), false, BoxPack.class, null, "batchId,boxId", batch.getId(), boxId);
+//		box.setStatus(LogisConstants.JOB_STATUS_EXAMINATED);
+//		box.setManualInspStatus(LogisConstants.PASS_STATUS);
+//		box.setManualInspectedAt(DateUtil.currentTimeStr());
+//		
+//		// 4. 작업 정보 검수 완료 처리
+//		Map<String, Object> updateParams = ValueUtil.newMap("status,manualInspStatus,nowStr,now,updaterId,domainId,batchId,classCd,boxId",
+//				LogisConstants.JOB_STATUS_EXAMINATED,
+//				LogisConstants.PASS_STATUS,
+//				DateUtil.currentTimeStr(),
+//				new Date(),
+//				User.currentUser().getId(),
+//				domainId,
+//				batch.getId(),
+//				classCd,
+//				boxId
+//			);
+//		
+//		String sql = "update job_instances set inspected_qty = pick_qty, status = :status, manual_insp_status = :manualInspStatus, manual_inspected_at = :nowStr, updater_id = :updaterId, updated_at = :now where domain_id = :domainId and batch_id = :batchId and class_cd = :classCd and box_id = :boxId";
+//		this.queryManager.executeBySql(sql, updateParams);
+//		
+//		// 5. 커스텀 서비스 호출 (ex: 송장 인쇄, 박스 실적 전송 등 처리)
+//		this.customService.doCustomService(domainId, DIY_DAS_AFTER_INSPECTION, ValueUtil.newMap("batch,box,printerId", batch, box, printerId));
+//
+//		// 6. 이벤트 처리 결과 셋팅
+//		event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, box));
+//		event.setExecuted(true);
+//	}
 
 }

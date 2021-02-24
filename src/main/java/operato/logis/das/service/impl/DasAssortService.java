@@ -71,6 +71,23 @@ import xyz.elidom.util.ValueUtil;
 public class DasAssortService extends AbstractClassificationService implements IAssortService {
 	
 	/**
+	 * 상품 투입 처리 후 커스텀 서비스
+	 */
+	private static final String DIY_INPUT_SKU_ACTION = "diy-das-input-sku";
+	/**
+	 * 피킹 완료 처리 후 커스텀 서비스
+	 */
+	private static final String DIY_PICKED_ACTION = "diy-das-pick-end";
+	/**
+	 * 셀 주문 완료 처리 후 커스텀 서비스
+	 */
+	private static final String DIY_CELL_END_ACTION = "diy-das-cell-end";
+	/**
+	 * 피킹 취소 후 커스텀 서비스
+	 */
+	private static final String DIY_CANCEL_PICK_ACTION = "diy-cancel-picking";
+	
+	/**
 	 * 커스텀 서비스
 	 */
 	@Autowired
@@ -223,18 +240,16 @@ public class DasAssortService extends AbstractClassificationService implements I
 			
 			// 게이트웨이 별 표시기에 셀 코드 표시 처리
 			for(Gateway gw : gwList) {
-				// TODO 아래 코드 오류 -> 수정 필요
-				Query condition = AnyOrmUtil.newConditionForExecution(batch.getDomainId());
-				condition.addFilter("gwCd", gw.getGwCd());
-				condition.addOrder("indSeq", true);
-				List<Cell> cellList = this.queryManager.selectList(Cell.class, ValueUtil.newMap("domainId,gwCd", batch.getDomainId(), gw.getGwCd()));
+				String sql = "select c.ind_cd, c.cell_cd from cells c inner join indicators i on c.domain_id = i.domain_id and c.ind_cd = i.ind_cd where c.domain_id = :domainId and i.gw_cd = :gwCd order by c.ind_seq asc";
+				Map<String, Object> params = ValueUtil.newMap("domainId,gwCd", batch.getDomainId(), gw.getGwCd());
+				List<Cell> cellList = this.queryManager.selectListBySql(sql, params, Cell.class, 0, 0);
 				for(Cell cell : cellList) {
 					indSvc.displayForCellCd(batch.getDomainId(), batch.getId(), batch.getStageCd(), batch.getJobType(), gw.getGwNm(), cell.getIndCd(), cell.getCellCd());
 				}
 			}
 		}
 	}
-
+	
 	@Override
 	public void batchCloseAction(JobBatch batch) {
 		// 1. 모든 셀에 남아 있는 잔량에 대해 풀 박싱 여부 조회
@@ -248,9 +263,6 @@ public class DasAssortService extends AbstractClassificationService implements I
 		
 		// 3. 작업 설정 셋 제거 
 		this.serviceDispatcher.getConfigSetService().clearConfigSet(batch.getId());
-		
-		// 4. 커스텀 서비스 호출
-		this.customService.doCustomService(batch.getDomainId(), "diy-after-das-batch-close", ValueUtil.newMap("batch", batch));
 	}
 
 	@Override
@@ -492,13 +504,16 @@ public class DasAssortService extends AbstractClassificationService implements I
 			this.updateOrderPickedQtyByConfirm(job, resQty);
 		}
 		
-		// 3. 태블릿 등 모바일 장비에서 작업 완료 처리시 표시기 소등 처리
+		// 3. 커스텀 서비스 - 피킹 완료 후 처리 액션
+		this.customService.doCustomService(batch.getDomainId(), DIY_PICKED_ACTION, ValueUtil.newMap("batch,job", batch, job));
+		
+		// 4. 태블릿 등 모바일 장비에서 작업 완료 처리시 표시기 소등 처리
 		if(ValueUtil.isNotEqual(exeEvent.getClassifyDevice(), Indicator.class.getSimpleName())) {
 			String pickQtyStr = this.toIndicatorStr(resQty);
 			this.serviceDispatcher.getIndicationService(job).displayForString(batch.getDomainId(), batch.getId(), batch.getStageCd(), batch.getJobType(), job.getIndCd(), pickQtyStr);
 		}
 		
-		// 4. 릴레이 처리
+		// 5. 릴레이 처리
 		WorkCell wc = exeEvent.getWorkCell();
 		wc.setLastJobCd("pick");
 		wc.setLastPickedQty(resQty);
@@ -520,13 +535,16 @@ public class DasAssortService extends AbstractClassificationService implements I
 			this.queryManager.update(job, "status", "pickingQty", "updatedAt");
 		}
 		
-		// 3. 태블릿 등 모바일 장비에서 작업 완료 처리시 표시기 소등 처리
+		// 3. 커스텀 서비스 - 피킹 취소 후 처리 액션
+		this.customService.doCustomService(batch.getDomainId(), DIY_CANCEL_PICK_ACTION, ValueUtil.newMap("batch,job", batch, job));
+		
+		// 4. 태블릿 등 모바일 장비에서 작업 완료 처리시 표시기 소등 처리
 		if(ValueUtil.isNotEqual(exeEvent.getClassifyDevice(), Indicator.class.getSimpleName())) {
 			String pickQtyStr = this.toIndicatorStr(0);
 			this.serviceDispatcher.getIndicationService(job).displayForString(batch.getDomainId(), batch.getId(), batch.getStageCd(), batch.getJobType(), job.getIndCd(), pickQtyStr);
 		}
 		
-		// 4. 릴레이 처리
+		// 5. 릴레이 처리
 		WorkCell wc = exeEvent.getWorkCell();
 		wc.setLastJobCd("cancel");
 		wc.setLastPickedQty(0);
@@ -617,7 +635,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 			throw new ElidomRuntimeException(msg);
 		}
 
-		// 6. 풀 박스 처리 
+		// 6. 풀 박스 처리
 		BoxPack boxPack = this.boxService.fullBoxing(batch, workCell, jobList, this);
 		
 		// 7. 다음 작업 처리
@@ -744,7 +762,10 @@ public class DasAssortService extends AbstractClassificationService implements I
 		workCell.setJobInstanceId(finalEndFlag ? null : job.getId());
 		this.queryManager.update(workCell, "status", "jobInstanceId", "indCd", "updatedAt");
 		
-		// 2. 표시기에 분류 처리 내용 표시
+		// 2. 커스텀 서비스 호출 - 셀 주문 완료 후 처리
+		this.customService.doCustomService(job.getDomainId(), DIY_CELL_END_ACTION, ValueUtil.newMap("job,workCell", job, workCell));
+		
+		// 3. 표시기에 분류 처리 내용 표시
 		this.serviceDispatcher.getIndicationService(job).indicatorOnForPickEnd(job, finalEndFlag);
 		return true;
 	}
@@ -941,7 +962,10 @@ public class DasAssortService extends AbstractClassificationService implements I
 		// 3. 피킹된 (즉 작업 중인) 작업 존 외에 존재하는 작업 리스트를 대상으로 표시기 점등
 		List<JobInstance> indJobList = jobList.stream().filter(job -> (!pickingStationList.contains(job.getStationCd()))).collect(Collectors.toList());
 		
-		// 4. 표시기 점등
+		// 4. 커스텀 서비스 호출 - 상품 투입 후 액션
+		this.customService.doCustomService(batch.getDomainId(), DIY_INPUT_SKU_ACTION, ValueUtil.newMap("batch,jobList", batch, jobList));
+		
+		// 5. 표시기 점등
 		this.serviceDispatcher.getIndicationService(batch).indicatorsOn(batch, false, indJobList);
 	}
 
@@ -963,7 +987,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 			this.finishAssortCell(job, cell, true);
 			
 		} else {
-			// 3. 현재 작업 중인 투입 시퀀스에 대해서 분류가 완료 되었는지 여부 
+			// 3. 현재 작업 중인 투입 시퀀스에 대해서 분류가 완료 되었는지 여부
 			boolean currentStationEnded = this.checkStationJobsEnd(job, job.getStationCd());
 			// 3.1 작업 스테이션이 완료되었다면
 			if(currentStationEnded) {
@@ -978,7 +1002,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 				// 3.3 릴레이 처리...
 				this.relayLightOn(batch, job, job.getStationCd());
 			}
-				
+			
 			// 4. 모든 셀의 분류가 완료되었는지 체크
 			boolean cellEndFlag = this.checkCellAssortEnd(job, false);
 			// 4.1 해당 셀의 작업이 모두 완료 상태인지 체크
@@ -995,9 +1019,9 @@ public class DasAssortService extends AbstractClassificationService implements I
 		// 5. 릴레이 처리 후 모바일 장비 리프레쉬 메시지 전달
 		this.sendMessageToMobileDevice(batch, null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
 	}
-
+	
 	/**
-	 * 현재 작업 투입 순서 이후의 투입 작업 중에 현재 작업 존과 같은 곳에 작업 리스트 조회 
+	 * 현재 작업 투입 순서 이후의 투입 작업 중에 현재 작업 존과 같은 곳에 작업 리스트 조회
 	 * 
 	 * @param batch
 	 * @param job
