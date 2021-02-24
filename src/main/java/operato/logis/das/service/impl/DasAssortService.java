@@ -122,7 +122,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 			String sql = "select rack_cd, batch_id from racks where domain_id = :domainId and job_type = :jobType and rack_cd in (select distinct(equip_cd) as equip_cd from cells where domain_id = :domainId and ind_cd in (select ind_cd from indicators where domain_id = :domainId and gw_cd = :gwCd) order by equip_cd)";
 			List<Rack> rackList = this.queryManager.selectListBySql(sql, ValueUtil.newMap("domainId,jobType,gwCd", domainId, LogisConstants.JOB_TYPE_DAS, gateway.getGwCd()), Rack.class, 0, 0);
 			
-			// 3. 호기로 부터 현재 작업 중인 배치 추출 
+			// 3. 호기로 부터 현재 작업 중인 배치 추출
 			for(Rack rack : rackList) {
 				// 3-1. 호기 체크
 				if(ValueUtil.isNotEmpty(rack.getBatchId())) {

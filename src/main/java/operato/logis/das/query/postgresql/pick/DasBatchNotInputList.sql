@@ -8,7 +8,7 @@ FROM (
 	WHERE
 		DOMAIN_ID = :domainId
 		AND BATCH_ID = :batchId
-		AND (INPUT_SEQ IS NULL OR INPUT_SEQ < 1)
+		AND (INPUT_SEQ IS NULL OR INPUT_SEQ = 0)
 		#if($stationCd)
 		AND SUB_EQUIP_CD IN (SELECT CELL_CD FROM CELLS WHERE DOMAIN_ID = :domainId AND EQUIP_CD = :equipCd AND STATION_CD = :stationCd)
 		#end

@@ -20,6 +20,7 @@ import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.BoxPack;
 import xyz.anythings.base.entity.Cell;
 import xyz.anythings.base.entity.JobBatch;
+import xyz.anythings.base.entity.JobInput;
 import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.entity.Printer;
 import xyz.anythings.base.event.IClassifyInEvent;
@@ -28,8 +29,10 @@ import xyz.anythings.base.event.rest.DeviceProcessRestEvent;
 import xyz.anythings.base.model.BatchProgressRate;
 import xyz.anythings.base.model.EquipBatchSet;
 import xyz.anythings.base.rest.PrinterController;
+import xyz.anythings.base.service.api.IIndicationService;
 import xyz.anythings.base.service.impl.LogisServiceDispatcher;
 import xyz.anythings.base.service.util.LogisServiceUtil;
+import xyz.anythings.gw.entity.Gateway;
 import xyz.anythings.sys.event.model.ErrorEvent;
 import xyz.anythings.sys.event.model.PrintEvent;
 import xyz.anythings.sys.event.model.SysEvent;
@@ -43,6 +46,7 @@ import xyz.elidom.sys.entity.Domain;
 import xyz.elidom.sys.entity.User;
 import xyz.elidom.sys.rest.DomainController;
 import xyz.elidom.sys.system.context.DomainContext;
+import xyz.elidom.sys.util.ThrowUtil;
 import xyz.elidom.sys.util.ValueUtil;
 import xyz.elidom.util.DateUtil;
 
@@ -131,9 +135,52 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 			event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, (totalRate == null ? rackRate : totalRate)));
 		}
 	}
-
+	
 	/*****************************************************************************************************
-	 * 										DAS 투입 리스트 화면 A P I
+	 * 										표시기 점/소등 A P I
+	 *****************************************************************************************************
+	/**
+	 * 완료 상태 표시기 END 표시 복원
+	 * 
+	 * @param event
+	 */
+	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/indicators/on/end_cells', 'das')")
+	@Order(Ordered.LOWEST_PRECEDENCE)
+	public void restoreEndList(DeviceProcessRestEvent event) {
+		// 1. 작업 배치 조회
+		Long domainId = event.getDomainId();
+		Map<String, Object> reqParams = event.getRequestParams();
+		String equipType = reqParams.get("equipType").toString();
+		String equipCd = reqParams.get("equipCd").toString();
+		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(domainId, equipType, equipCd);
+		JobBatch batch = equipBatchSet.getBatch();
+		IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
+		
+		// 2. 배치 소속 게이트웨이 조회
+		String sql = "select gw_cd, gw_nm from gateways where id in (select distinct(g.id) as gw_id from gateways g inner join indicators i on g.domain_id = i.domain_id and g.gw_cd = i.gw_cd inner join cells c on i.domain_id = c.domain_id and i.ind_cd = c.ind_cd where g.domain_id = :domainId and c.equip_type = :equipType and c.equip_cd = :equipCd)";
+		Map<String, Object> params = ValueUtil.newMap("domainId,equipType,equipCd", Domain.currentDomainId(), equipType, equipCd);
+		List<Gateway> gwList = this.queryManager.selectListBySql(sql, params, Gateway.class, 0, 0);
+		sql = this.dasQueryStore.getRestoreEndIndicators();
+		
+		// 3. 작업 배치, 게이트웨이에 걸린 셀 중에 ENDING, ENDED 상태인 셀을 모두 조회
+		for(Gateway gw : gwList) {
+			Map<String, Object> condition = ValueUtil.newMap("domainId,batchId,stageCd,jobType,equipCd", domainId, batch.getId(), batch.getStageCd(), batch.getJobType(), equipCd);
+			condition.put("gwPath", gw.getGwNm());
+			condition.put("gwCd", gw.getGwCd());
+			condition.put("indStatuses", LogisConstants.CELL_JOB_STATUS_END_LIST);
+			List<JobInstance> jobList = this.queryManager.selectListBySql(sql, condition, JobInstance.class, 0, 0);
+		
+			// 4. ENDING, ENDED 조회한 정보로 모두 점등
+			if(ValueUtil.isNotEmpty(jobList)) {
+				for(JobInstance job : jobList) {
+					indSvc.indicatorOnForPickEnd(job, ValueUtil.isEqualIgnoreCase(job.getStatus(), LogisConstants.CELL_JOB_STATUS_ENDED));
+				}
+			}
+		}
+	}
+	
+	/*****************************************************************************************************
+	 * 										D A S 투 입 A P I
 	 *****************************************************************************************************
 	/**
 	 * DAS 투입 순번 작업 리스트 조회
@@ -161,6 +208,66 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		
 		// 4. 이벤트 처리 결과 셋팅
 		event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, jobList));
+		event.setExecuted(true);
+	}
+	
+	/**
+	 * DAS 마지막 상품 투입 취소
+	 *
+	 * @param event
+	 * @return
+	 */ 
+	@EventListener(classes=DeviceProcessRestEvent.class, condition = "#event.checkCondition('/cancel/input/sku', 'das')")
+	@Order(Ordered.LOWEST_PRECEDENCE)
+	public void cancelInputSku(DeviceProcessRestEvent event) {
+		// 1. 파라미터
+		Map<String, Object> reqParams = event.getRequestParams();
+		String equipType = reqParams.get("equipType").toString();
+		String equipCd = reqParams.get("equipCd").toString();
+		
+		// 2. 작업 배치
+		EquipBatchSet equipBatchSet = LogisServiceUtil.checkRunningBatch(Domain.currentDomainId(), equipType, equipCd);
+		JobBatch batch = equipBatchSet.getBatch();
+		
+		// 3. 마지막 투입 상품 조회
+		Integer lastInputSeq = batch.getLastInputSeq();
+		if(lastInputSeq == null || lastInputSeq < 1) {
+			throw ThrowUtil.newValidationErrorWithNoLog("투입된 상품이 없습니다.");
+		}
+		
+		// 4. 작업 현황 조회
+		Map<String, Object> condition = ValueUtil.newMap("inputSeq", batch.getLastInputSeq());
+		List<JobInstance> jobList = this.serviceDispatcher.getJobStatusService(batch).searchJobList(batch, condition);
+		for(JobInstance job : jobList) {
+			if(ValueUtil.isNotEqual(job.getStatus(), LogisConstants.JOB_STATUS_INPUT)) {
+				throw ThrowUtil.newValidationErrorWithNoLog("분류 처리된 상품이 있어서 투입 취소할 수 없습니다.");
+			}
+		}
+		
+		// 5. 투입 삭제 처리
+		condition = ValueUtil.newMap("domainId,batchId,inputSeq", batch.getDomainId(), batch.getId(), batch.getLastInputSeq());
+		JobInput jobInput = this.queryManager.selectByCondition(JobInput.class, condition);
+		if(jobInput == null) {
+			throw ThrowUtil.newValidationErrorWithNoLog("마지막 투입 시퀀스의 투입 정보가 없습니다.");
+		}
+		
+		String comCd = jobInput.getComCd();
+		String skuCd = jobInput.getSkuCd();
+		this.queryManager.delete(jobInput);
+		
+		// 6. 작업 현황 업데이트
+		String sql = "update job_instances set status = :status, picking_qty = 0, input_at = null, pick_started_at = null, input_seq = 0 where domain_id = :domainId and batch_id = :batchId and input_seq = :inputSeq and com_cd = :comCd and sku_cd = :skuCd";
+		condition.put("status", LogisConstants.JOB_STATUS_WAIT);
+		condition.put("comCd", comCd);
+		condition.put("skuCd", skuCd);
+		this.queryManager.executeBySql(sql, condition);
+		
+		// 7. 배치 마지막 시퀀스 업데이트
+		batch.setLastInputSeq(batch.getLastInputSeq() - 1);
+		this.queryManager.update(batch, "lastInputSeq");
+		
+		// 8. 이벤트 처리 결과 셋팅
+		event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, null));
 		event.setExecuted(true);
 	}
 	
