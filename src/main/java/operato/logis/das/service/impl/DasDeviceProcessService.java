@@ -260,7 +260,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		}
 		
 		// 7. 작업 현황 업데이트
-		String sql = "update job_instances set status = :status, picking_qty = 0, input_at = null, pick_started_at = null, input_seq = 0 where domain_id = :domainId and batch_id = :batchId and input_seq = :inputSeq and com_cd = :comCd and sku_cd = :skuCd";
+		String sql = "update job_instances set status = :status, picking_qty = 0, input_at = null, pick_started_at = null, input_seq = 0, ind_cd = null, color_cd = null where domain_id = :domainId and batch_id = :batchId and input_seq = :inputSeq and com_cd = :comCd and sku_cd = :skuCd";
 		condition.put("status", LogisConstants.JOB_STATUS_WAIT);
 		condition.put("comCd", jobInput.getComCd());
 		condition.put("skuCd", jobInput.getSkuCd());
