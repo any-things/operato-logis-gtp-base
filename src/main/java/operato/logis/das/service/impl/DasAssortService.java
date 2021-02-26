@@ -26,11 +26,14 @@ import xyz.anythings.base.entity.SKU;
 import xyz.anythings.base.entity.WorkCell;
 import xyz.anythings.base.event.ICategorizeEvent;
 import xyz.anythings.base.event.IClassifyErrorEvent;
+import xyz.anythings.base.event.IClassifyEvent;
 import xyz.anythings.base.event.IClassifyInEvent;
 import xyz.anythings.base.event.IClassifyOutEvent;
 import xyz.anythings.base.event.IClassifyRunEvent;
+import xyz.anythings.base.event.classfy.ClassifyEndEvent;
 import xyz.anythings.base.event.classfy.ClassifyErrorEvent;
 import xyz.anythings.base.event.classfy.ClassifyRunEvent;
+import xyz.anythings.base.event.device.DeviceEvent;
 import xyz.anythings.base.event.input.InputEvent;
 import xyz.anythings.base.model.Category;
 import xyz.anythings.base.model.CategoryItem;
@@ -47,7 +50,6 @@ import xyz.anythings.gw.entity.IndConfigSet;
 import xyz.anythings.gw.entity.Indicator;
 import xyz.anythings.gw.event.GatewayInitEvent;
 import xyz.anythings.gw.service.IndConfigProfileService;
-import xyz.anythings.gw.service.mq.model.device.DeviceCommand;
 import xyz.anythings.sys.service.ICustomService;
 import xyz.anythings.sys.util.AnyEntityUtil;
 import xyz.anythings.sys.util.AnyOrmUtil;
@@ -88,11 +90,6 @@ public class DasAssortService extends AbstractClassificationService implements I
 	private static final String DIY_CANCEL_PICK_ACTION = "diy-cancel-picking";
 	
 	/**
-	 * 커스텀 서비스
-	 */
-	@Autowired
-	private ICustomService customService;
-	/**
 	 * 표시기 설정 프로파일 서비스
 	 */
 	@Autowired
@@ -102,6 +99,11 @@ public class DasAssortService extends AbstractClassificationService implements I
 	 */
 	@Autowired
 	private DasBoxingService boxService;
+	/**
+	 * 커스텀 서비스
+	 */
+	@Autowired
+	private ICustomService customService;
 	/**
 	 * DAS 쿼리 스토어
 	 */
@@ -395,10 +397,8 @@ public class DasAssortService extends AbstractClassificationService implements I
 			// 3.4 호기별로 모든 작업 존 별로 현재 '피킹 시작' 상태인 작업이 없다면 그 존은 점등한다.
 			this.startAssorting(batch, newInput, jobList);
 			// 3.5 투입 후 처리 이벤트 전송
-			this.eventPublisher.publishEvent(new InputEvent(newInput, batch.getJobType()));
-			// TODO 3.6 이벤트 핸들러에서 아래 코드 사용 - 호기별 메인 모바일 디바이스(태블릿, PDA)에 새로고침 메시지 전달
-			this.sendMessageToMobileDevice(batch, null, null, "info", DeviceCommand.COMMAND_REFRESH);
-			// 3.7 작업 리스트 리턴
+			this.eventPublisher.publishEvent(new InputEvent(batch, newInput));
+			// 3.6 작업 리스트 리턴
 			return jobList;
 		}
 	}
@@ -517,7 +517,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		WorkCell wc = exeEvent.getWorkCell();
 		wc.setLastJobCd("pick");
 		wc.setLastPickedQty(resQty);
-		this.doNextJob(batch, job, wc, false);
+		this.doNextJob(exeEvent, batch, job, wc, false);
 	}
 
 	@Override
@@ -548,7 +548,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		WorkCell wc = exeEvent.getWorkCell();
 		wc.setLastJobCd("cancel");
 		wc.setLastPickedQty(0);
-		this.doNextJob(batch, job, wc, false);
+		this.doNextJob(exeEvent, batch, job, wc, false);
 	}
 
 	@Override
@@ -565,8 +565,9 @@ public class DasAssortService extends AbstractClassificationService implements I
 		
 		// 3. 남은 수량 표시기 점등
 		this.serviceDispatcher.getIndicationService(job).indicatorsOn(exeEvent.getJobBatch(), false, ValueUtil.toList(job));
-		// 4. 태블릿 피킹 화면 리프레쉬
-		this.sendMessageToMobileDevice(exeEvent.getJobBatch(), null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
+		// 4. 분류 완료 이벤트 전송
+		this.eventPublisher.publishEvent(new ClassifyEndEvent(exeEvent));
+		//this.sendMessageToMobileDevice(exeEvent.getJobBatch(), null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
 		// 5. 조정 수량 리턴 
 		return resQty;
 	}
@@ -604,7 +605,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		WorkCell wc = exeEvent.getWorkCell();
 		wc.setLastJobCd("undo");
 		wc.setLastPickedQty(-1 * pickedQty);
-		this.doNextJob(batch, job, wc, false);
+		this.doNextJob(exeEvent, batch, job, wc, false);
 
 		// 4. 주문 취소된 확정 수량 리턴
 		return pickedQty;
@@ -643,7 +644,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 			// 다음 작업 처리
 			workCell.setLastJobCd("fullbox");
 			workCell.setLastPickedQty(0);
-			this.doNextJob(batch, jobList.get(0), workCell, true);
+			this.doNextJob(outEvent, batch, jobList.get(0), workCell, true);
 			outEvent.setResult(boxPack);
 		}
 		
@@ -786,7 +787,17 @@ public class DasAssortService extends AbstractClassificationService implements I
 				AnyEntityUtil.findEntityBy(errorEvent.getDomainId(), false, Cell.class, "stationCd", "cellCd", cellCd) : null;
 			
 			String errMsg = (th.getCause() == null) ? th.getMessage() : th.getCause().getMessage();
-			this.sendMessageToMobileDevice(errorEvent.getJobBatch(), isIndicatorDevice ? null : device, (c != null ? c.getStationCd() : null), "error", errMsg);
+			//this.sendMessageToMobileDevice(errorEvent.getJobBatch(), isIndicatorDevice ? null : device, (c != null ? c.getStationCd() : null), "error", errMsg);
+			
+			JobBatch batch = errorEvent.getJobBatch();
+			String[] deviceTypeList = (isIndicatorDevice) ? DasBatchJobConfigUtil.getDeviceList(batch) : new String[] { device };
+			
+			if(deviceTypeList != null) {
+				for(String deviceType : deviceTypeList) {
+					DeviceEvent event = new DeviceEvent(batch.getDomainId(), deviceType, batch.getStageCd(), batch.getEquipType(), batch.getEquipCd(), (c != null ? c.getStationCd() : null), null, batch.getJobType(), "error", errMsg);
+					this.eventPublisher.publishEvent(event);
+				}
+			}
 		}
 
 		// 5. 예외 발생
@@ -972,12 +983,13 @@ public class DasAssortService extends AbstractClassificationService implements I
 	/**
 	 * 다음 작업 처리
 	 * 
+	 * @param classifyEvent
 	 * @param batch
 	 * @param job
 	 * @param cell
 	 * @param fullboxAction
 	 */
-	private void doNextJob(JobBatch batch, JobInstance job, WorkCell cell, boolean fullboxAction) {
+	private void doNextJob(IClassifyEvent classifyEvent, JobBatch batch, JobInstance job, WorkCell cell, boolean fullboxAction) {
 		// 1. WorkCell 업데이트
 		cell.setJobInstanceId(job != null ? job.getId() : null);
 		cell.setIndCd(job.getIndCd());
@@ -1017,7 +1029,8 @@ public class DasAssortService extends AbstractClassificationService implements I
 		}
 		
 		// 5. 릴레이 처리 후 모바일 장비 리프레쉬 메시지 전달
-		this.sendMessageToMobileDevice(batch, null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
+		//this.sendMessageToMobileDevice(batch, null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
+		this.eventPublisher.publishEvent(new ClassifyEndEvent(classifyEvent));
 	}
 	
 	/**
@@ -1041,7 +1054,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		params = ValueUtil.newMap("stationCd,status,inputSeq", stationCd, LogisConstants.JOB_STATUS_INPUT, nextInputSeq);
 		List<JobInstance> relayJobs = this.serviceDispatcher.getJobStatusService(batch).searchPickingJobList(batch, params);
 		
-		// 3. 릴레이 처리 작업 리스트가 존재하면 
+		// 3. 릴레이 처리 작업 리스트가 존재하면
 		if(ValueUtil.isNotEmpty(relayJobs)) {
 			// 3.1. 릴레이 작업에 포함된 작업에 소속된 투입 정보의 상태를 '진행 중'으로 변경
 			JobInstance relayJob = relayJobs.get(0);
@@ -1108,7 +1121,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 	 * @param notiType
 	 * @param message
 	 */
-	private void sendMessageToMobileDevice(JobBatch batch, String toDevice, String stationCd, String notiType, String message) {
+	/*private void sendMessageToMobileDevice(JobBatch batch, String toDevice, String stationCd, String notiType, String message) {
 		String[] deviceList = (toDevice == null) ? DasBatchJobConfigUtil.getDeviceList(batch) : new String[] { toDevice };
 		
 		if(deviceList != null) {
@@ -1116,7 +1129,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 				this.serviceDispatcher.getDeviceService().sendMessageToDevice(batch.getDomainId(), device, batch.getStageCd(), batch.getEquipType(), batch.getEquipCd(), stationCd, null, batch.getJobType(), notiType, message, null);
 			}
 		}
-	}
+	}*/
 
 	/**
 	 * 표시기에 표시할 수량을 문자로 표현 

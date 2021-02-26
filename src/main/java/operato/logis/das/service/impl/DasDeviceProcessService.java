@@ -26,7 +26,10 @@ import xyz.anythings.base.entity.JobInput;
 import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.entity.Printer;
 import xyz.anythings.base.event.IClassifyInEvent;
+import xyz.anythings.base.event.classfy.ClassifyEndEvent;
 import xyz.anythings.base.event.classfy.ClassifyInEvent;
+import xyz.anythings.base.event.device.DeviceEvent;
+import xyz.anythings.base.event.input.InputEvent;
 import xyz.anythings.base.event.rest.DeviceProcessRestEvent;
 import xyz.anythings.base.model.BatchProgressRate;
 import xyz.anythings.base.model.EquipBatchSet;
@@ -35,6 +38,7 @@ import xyz.anythings.base.service.api.IIndicationService;
 import xyz.anythings.base.service.impl.LogisServiceDispatcher;
 import xyz.anythings.base.service.util.LogisServiceUtil;
 import xyz.anythings.gw.entity.Gateway;
+import xyz.anythings.gw.service.mq.model.device.DeviceCommand;
 import xyz.anythings.sys.event.model.ErrorEvent;
 import xyz.anythings.sys.event.model.PrintEvent;
 import xyz.anythings.sys.event.model.SysEvent;
@@ -56,11 +60,6 @@ import xyz.elidom.sys.util.ValueUtil;
 @Component("dasDeviceProcessService")
 public class DasDeviceProcessService extends AbstractExecutionService {
 	/**
-	 * 커스텀 서비스
-	 */
-	@Autowired
-	protected ICustomService customService;
-	/**
 	 * 도메인 컨트롤러
 	 */
 	@Autowired
@@ -75,6 +74,11 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 	 */
 	@Autowired
 	private LogisServiceDispatcher serviceDispatcher;
+	/**
+	 * 커스텀 서비스
+	 */
+	@Autowired
+	protected ICustomService customService;
 	/**
 	 * DAS Query Store
 	 */
@@ -281,7 +285,10 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 			}
 		}
 		
-		// 10. 이벤트 처리 결과 셋팅
+		// 10. 투입 이벤트 Publish
+		this.eventPublisher.publishEvent(new InputEvent(batch, jobInput));
+		
+		// 11. 이벤트 처리 결과 셋팅
 		event.setReturnResult(new BaseResponse(true, LogisConstants.OK_STRING, null));
 		event.setExecuted(true);
 	}
@@ -396,7 +403,7 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 	 * 											이 벤 트 처 리 A P I
 	 *****************************************************************************************************
 	/**
-	 * 송장 라벨 인쇄 API
+	 * 송장 라벨 인쇄
 	 * 
 	 * @param printEvent
 	 */
@@ -429,6 +436,46 @@ public class DasDeviceProcessService extends AbstractExecutionService {
 		} finally {
 			// 스레드 로컬 변수에서 currentDomain 리셋 
 			DomainContext.unsetAll();
+		}
+	}
+	
+	/**
+	 * 상품 투입 이벤트 처리
+	 * 
+	 * @param inputEvent
+	 */
+	@EventListener(classes = InputEvent.class, condition = "#inputEvent.jobType == 'DAS'")
+	public void inputEventHandler(InputEvent inputEvent) {
+		JobBatch batch = inputEvent.getBatch();
+		Long domainId = batch.getDomainId();
+		String[] deviceTypeList = DasBatchJobConfigUtil.getDeviceList(batch);
+		
+		if(deviceTypeList != null) {
+			for(String deviceType : deviceTypeList) {
+				DeviceEvent event = new DeviceEvent(domainId, deviceType, batch.getStageCd(), batch.getEquipType(), batch.getEquipCd(), null, null, batch.getJobType(), "info", DeviceCommand.COMMAND_REFRESH);
+				this.eventPublisher.publishEvent(event);
+			}
+		}
+	}
+	
+	
+	
+	/**
+	 * 분류 처리 완료 이벤트 처리
+	 * 
+	 * @param classifyEndEvent
+	 */
+	@EventListener(classes = ClassifyEndEvent.class, condition = "#classifyEndEvent.jobType == 'DAS'")
+	public void inputEventHandler(ClassifyEndEvent classifyEndEvent) {
+		JobBatch batch = classifyEndEvent.getClassifyEvent().getJobBatch();
+		Long domainId = batch.getDomainId();
+		String[] deviceTypeList = DasBatchJobConfigUtil.getDeviceList(batch);
+		
+		if(deviceTypeList != null) {
+			for(String deviceType : deviceTypeList) {
+				DeviceEvent event = new DeviceEvent(domainId, deviceType, batch.getStageCd(), batch.getEquipType(), batch.getEquipCd(), null, null, batch.getJobType(), "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
+				this.eventPublisher.publishEvent(event);
+			}
 		}
 	}
 
