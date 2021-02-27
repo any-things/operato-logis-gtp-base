@@ -9,7 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import operato.logis.das.query.store.DasQueryStore;
-import operato.logis.das.service.util.RtnBatchJobConfigUtil;
+import operato.logis.das.service.util.DasBatchJobConfigUtil;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.JobConfigSet;
@@ -353,7 +353,7 @@ public class DasInstructionService extends AbstractInstructionService implements
 	 */
 	protected void afterCancelInstructionBatch(JobBatch batch) {
 		// 1. 작업 지시 시점에 표시기 점등했다면 표시기 소등
-		if(RtnBatchJobConfigUtil.isIndOnAssignedCellWhenInstruction(batch)) {
+		if(DasBatchJobConfigUtil.isIndOnAssignedCellWhenInstruction(batch)) {
 			BeanUtil.get(LogisServiceDispatcher.class).getIndicationService(batch).indicatorOffAll(batch);
 		}
 		
