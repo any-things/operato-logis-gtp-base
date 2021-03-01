@@ -1,5 +1,6 @@
 package operato.logis.das.service.impl;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -60,6 +61,7 @@ import xyz.elidom.exception.server.ElidomRuntimeException;
 import xyz.elidom.sys.SysConstants;
 import xyz.elidom.sys.util.DateUtil;
 import xyz.elidom.sys.util.MessageUtil;
+import xyz.elidom.sys.util.SettingUtil;
 import xyz.elidom.sys.util.ThrowUtil;
 import xyz.elidom.util.ThreadUtil;
 import xyz.elidom.util.ValueUtil;
@@ -567,7 +569,6 @@ public class DasAssortService extends AbstractClassificationService implements I
 		this.serviceDispatcher.getIndicationService(job).indicatorsOn(exeEvent.getJobBatch(), false, ValueUtil.toList(job));
 		// 4. 분류 완료 이벤트 전송
 		this.eventPublisher.publishEvent(new ClassifyEndEvent(exeEvent));
-		//this.sendMessageToMobileDevice(exeEvent.getJobBatch(), null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
 		// 5. 조정 수량 리턴 
 		return resQty;
 	}
@@ -615,31 +616,37 @@ public class DasAssortService extends AbstractClassificationService implements I
 	public BoxPack fullBoxing(IClassifyOutEvent outEvent) {
 		// 1. 풀 박스 처리해야 할 작업 리스트 조회
 		JobBatch batch = outEvent.getJobBatch();
-		// 2. 작업 셀 추출
+		
+		// 2. 설정에 따라 Fullbox를 지원할 지 여부 판단하여 지원 안 하는 경우 스킵
+		String settingKey = outEvent.getStageCd() + ".das.fullbox.support";
+		boolean dasFullboxSupport = ValueUtil.toBoolean(SettingUtil.getValue(settingKey, "false"));
+		if(!dasFullboxSupport) return null;
+		
+		// 3. 작업 셀 추출
 		WorkCell workCell = outEvent.getWorkCell();
 		
-		// 3. 작업 배치가 null이면 조회
+		// 4. 작업 배치가 null이면 조회
 		if(batch == null) {
 			String sql = "select * from job_batches where domain_id = :domainId and status = 'RUN' and equip_cd in (select distinct equip_cd from cells where domain_id = :domainId and cell_cd = :cellCd)";
 			Map<String, Object> bParams = ValueUtil.newMap("domainId,cellCd", outEvent.getDomainId(), workCell.getCellCd());
 			batch = this.queryManager.selectBySql(sql, bParams, JobBatch.class);
 		}
 		
-		// 4. WorkCell의 셀 번호로 부터 완료된 작업 리스트 조회
+		// 5. WorkCell의 셀 번호로 부터 완료된 작업 리스트 조회
 		Map<String, Object> params = ValueUtil.newMap("subEquipCd,status", workCell.getCellCd(), LogisConstants.JOB_STATUS_FINISH);
 		List<JobInstance> jobList = this.serviceDispatcher.getJobStatusService(batch).searchJobList(batch, params);
 		
-		// 5. 풀 박스 체크
+		// 6. 풀 박스 체크
 		if(ValueUtil.isEmpty(jobList)) {
 			// 이미 처리된 항목입니다. --> 작업[job.getId()]은 이미 풀 박스가 완료되었습니다.
 			String msg = MessageUtil.getMessage("ALREADY_BEEN_PROCEEDED", "Already been proceeded.");
 			throw new ElidomRuntimeException(msg);
 		}
 
-		// 6. 풀 박스 처리
+		// 7. 풀 박스 처리
 		BoxPack boxPack = this.boxService.fullBoxing(batch, workCell, jobList, this);
 		
-		// 7. 다음 작업 처리
+		// 8. 다음 작업 처리
 		if(boxPack != null) {
 			// 다음 작업 처리
 			workCell.setLastJobCd("fullbox");
@@ -649,7 +656,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		}
 		
 		outEvent.setExecuted(true);
-		// 8. 박스 리턴
+		// 9. 박스 리턴
 		return boxPack;
 	}
 
@@ -787,8 +794,6 @@ public class DasAssortService extends AbstractClassificationService implements I
 				AnyEntityUtil.findEntityBy(errorEvent.getDomainId(), false, Cell.class, "stationCd", "cellCd", cellCd) : null;
 			
 			String errMsg = (th.getCause() == null) ? th.getMessage() : th.getCause().getMessage();
-			//this.sendMessageToMobileDevice(errorEvent.getJobBatch(), isIndicatorDevice ? null : device, (c != null ? c.getStationCd() : null), "error", errMsg);
-			
 			JobBatch batch = errorEvent.getJobBatch();
 			String[] deviceTypeList = (isIndicatorDevice) ? DasBatchJobConfigUtil.getDeviceList(batch) : new String[] { device };
 			
@@ -827,8 +832,24 @@ public class DasAssortService extends AbstractClassificationService implements I
 		// 3. inspectJobList는 inspection 모드로 표시기 점등
 		IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
 		
-		// 4. 검수 모드로 표시기 점등
-		RuntimeIndServiceUtil.indOnByInspectJobList(batch, doneJobList);
+		// 4. 검수 모드로 표시기 점등, 10개씩 쪼개서 점등
+		// RuntimeIndServiceUtil.indOnByInspectJobList(batch, doneJobList);
+		if(ValueUtil.isNotEmpty(doneJobList)) {
+			List<JobInstance> sliceDoneJobList = new ArrayList<JobInstance>();
+			for(JobInstance job : doneJobList) {
+				sliceDoneJobList.add(job);
+				
+				if(sliceDoneJobList.size() >= 10) {
+					RuntimeIndServiceUtil.indOnByInspectJobList(batch, sliceDoneJobList);
+					sliceDoneJobList.clear();
+					ThreadUtil.sleep(500);
+				}
+			}
+			
+			if(!sliceDoneJobList.isEmpty()) {
+				RuntimeIndServiceUtil.indOnByInspectJobList(batch, sliceDoneJobList);
+			}
+		}
 		
 		// 5. picking 모드로 표시기 점등
 		if(ValueUtil.isNotEmpty(todoJobList)) {
@@ -976,8 +997,29 @@ public class DasAssortService extends AbstractClassificationService implements I
 		// 4. 커스텀 서비스 호출 - 상품 투입 후 액션
 		this.customService.doCustomService(batch.getDomainId(), DIY_INPUT_SKU_ACTION, ValueUtil.newMap("batch,jobList", batch, jobList));
 		
-		// 5. 표시기 점등
-		this.serviceDispatcher.getIndicationService(batch).indicatorsOn(batch, false, indJobList);
+		// 5. 10개 이하인 경우 한꺼번에 점등
+		if(indJobList.size() <= 10) {
+			this.serviceDispatcher.getIndicationService(batch).indicatorsOn(batch, false, indJobList);
+			
+		// 7. 10개 이상인 경우 10개씩 쪼개서 점등
+		} else {
+			IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
+			List<JobInstance> sliceIndJobList = new ArrayList<JobInstance>();
+			
+			for(JobInstance job : indJobList) {
+				sliceIndJobList.add(job);
+				
+				if(sliceIndJobList.size() >= 10) {
+					indSvc.indicatorsOn(batch, false, sliceIndJobList);
+					ThreadUtil.sleep(500);
+					sliceIndJobList.clear();
+				}
+			}
+			
+			if(!sliceIndJobList.isEmpty()) {
+				indSvc.indicatorsOn(batch, false, sliceIndJobList);
+			}
+		}
 	}
 
 	/**
@@ -1029,7 +1071,6 @@ public class DasAssortService extends AbstractClassificationService implements I
 		}
 		
 		// 5. 릴레이 처리 후 모바일 장비 리프레쉬 메시지 전달
-		//this.sendMessageToMobileDevice(batch, null, null, "info", DeviceCommand.COMMAND_REFRESH_DETAILS);
 		this.eventPublisher.publishEvent(new ClassifyEndEvent(classifyEvent));
 	}
 	
@@ -1112,25 +1153,6 @@ public class DasAssortService extends AbstractClassificationService implements I
 		}
 	}
 	
-	/**
-	 * 모바일 디바이스에 메시지 전송
-	 * 
-	 * @param batch
-	 * @param toDevice
-	 * @param stationCd
-	 * @param notiType
-	 * @param message
-	 */
-	/*private void sendMessageToMobileDevice(JobBatch batch, String toDevice, String stationCd, String notiType, String message) {
-		String[] deviceList = (toDevice == null) ? DasBatchJobConfigUtil.getDeviceList(batch) : new String[] { toDevice };
-		
-		if(deviceList != null) {
-			for(String device : deviceList) {
-				this.serviceDispatcher.getDeviceService().sendMessageToDevice(batch.getDomainId(), device, batch.getStageCd(), batch.getEquipType(), batch.getEquipCd(), stationCd, null, batch.getJobType(), notiType, message, null);
-			}
-		}
-	}*/
-
 	/**
 	 * 표시기에 표시할 수량을 문자로 표현 
 	 * 

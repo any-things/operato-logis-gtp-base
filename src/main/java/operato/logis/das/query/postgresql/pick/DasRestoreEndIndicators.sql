@@ -1,18 +1,19 @@
 select
 	:domainId as domain_id,
-	COALESCE(job_instance_id, ind_cd) as id,
-	:batchId as batch_id,
+	max(id),
+	batch_id,
+	ind_cd,
+	'END' as status,
 	:stageCd as stage_cd,
 	:jobType as job_type,
-	:gwPath as gw_path,
-	ind_cd,
-	status
+	:gwPath as gw_path
 from
-	work_cells
+	job_instances
 where
 	domain_id = :domainId
 	and batch_id = :batchId
-	and cell_cd in (
+	and status = 'B'
+	and sub_equip_cd in (
 		select
 			cell_cd
 		from
@@ -30,4 +31,5 @@ where
 					and gw_cd = :gwCd
 			)
 	)
-	and status in (:indStatuses)
+group by
+	batch_id, ind_cd
