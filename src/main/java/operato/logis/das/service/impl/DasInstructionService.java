@@ -392,7 +392,7 @@ public class DasInstructionService extends AbstractInstructionService implements
 	 * @return
 	 */
 	protected int doInstructBatch(JobBatch batch, List<String> regionList) {
-		// 1. 표시기 소등, TODO 10개씩 쪼개서 소등 - 추후 처리
+		// 1. 표시기 소등
 		this.serviceDispatcher.getIndicationService(batch).indicatorOffAll(batch);
 		
 		// 2. 배치 내 할당 안 된 주문 가공 정보, 주문 정보를 새로운 배치로 잘라낸다.

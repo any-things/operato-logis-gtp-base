@@ -1,6 +1,5 @@
 package operato.logis.das.service.impl;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -832,9 +831,9 @@ public class DasAssortService extends AbstractClassificationService implements I
 		// 3. inspectJobList는 inspection 모드로 표시기 점등
 		IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
 		
-		// 4. 검수 모드로 표시기 점등, 10개씩 쪼개서 점등
-		// RuntimeIndServiceUtil.indOnByInspectJobList(batch, doneJobList);
-		if(ValueUtil.isNotEmpty(doneJobList)) {
+		// 4. 검수 모드로 표시기 점등
+		RuntimeIndServiceUtil.indOnByInspectJobList(batch, doneJobList);
+		/*if(ValueUtil.isNotEmpty(doneJobList)) {
 			List<JobInstance> sliceDoneJobList = new ArrayList<JobInstance>();
 			for(JobInstance job : doneJobList) {
 				sliceDoneJobList.add(job);
@@ -849,7 +848,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 			if(!sliceDoneJobList.isEmpty()) {
 				RuntimeIndServiceUtil.indOnByInspectJobList(batch, sliceDoneJobList);
 			}
-		}
+		}*/
 		
 		// 5. picking 모드로 표시기 점등
 		if(ValueUtil.isNotEmpty(todoJobList)) {
@@ -997,12 +996,15 @@ public class DasAssortService extends AbstractClassificationService implements I
 		// 4. 커스텀 서비스 호출 - 상품 투입 후 액션
 		this.customService.doCustomService(batch.getDomainId(), DIY_INPUT_SKU_ACTION, ValueUtil.newMap("batch,jobList", batch, jobList));
 		
-		// 5. 10개 이하인 경우 한꺼번에 점등
-		if(indJobList.size() <= 10) {
+		// 5. 표시기 점등
+		this.serviceDispatcher.getIndicationService(batch).indicatorsOn(batch, false, indJobList);
+		
+		/*if(indJobList.size() <= 10) {
+			// 5. 10개 이하인 경우 한꺼번에 점등
 			this.serviceDispatcher.getIndicationService(batch).indicatorsOn(batch, false, indJobList);
 			
-		// 7. 10개 이상인 경우 10개씩 쪼개서 점등
 		} else {
+			// 6. 10개 이상인 경우 10개씩 쪼개서 점등
 			IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
 			List<JobInstance> sliceIndJobList = new ArrayList<JobInstance>();
 			
@@ -1019,7 +1021,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 			if(!sliceIndJobList.isEmpty()) {
 				indSvc.indicatorsOn(batch, false, sliceIndJobList);
 			}
-		}
+		}*/
 	}
 
 	/**
