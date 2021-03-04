@@ -56,6 +56,9 @@ public class OperatoLogisDasInitializer {
 	public void refresh(ContextRefreshedEvent event) {
 		this.logger.info("Operato Logistics DAS module refreshing...");
 		
+		this.configSet.addConfig(this.module.getName(), this.module);
+		this.scanServices();
+
 		this.logger.info("Operato Logistics DAS module refreshed!");
 	}
 	
@@ -63,8 +66,6 @@ public class OperatoLogisDasInitializer {
 	void ready(ApplicationReadyEvent event) {
 		this.logger.info("Operato Logistics DAS module initializing...");
 		
-		this.configSet.addConfig(this.module.getName(), this.module);
-		this.scanServices();
 		this.initQueryStores();
 		
 		this.logger.info("Operato Logistics DAS module initialized!");
