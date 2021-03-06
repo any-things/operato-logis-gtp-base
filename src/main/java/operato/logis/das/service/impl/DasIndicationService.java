@@ -8,10 +8,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import operato.logis.das.service.api.IDasIndicationService;
+import operato.logis.das.service.util.OperatoDasServiceUtil;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.JobBatch;
 import xyz.anythings.base.entity.JobInput;
 import xyz.anythings.base.entity.JobInstance;
+import xyz.anythings.base.entity.Rework;
 import xyz.anythings.base.query.store.IndicatorQueryStore;
 import xyz.anythings.base.query.util.IndicatorQueryUtil;
 import xyz.anythings.base.service.impl.AbstractLogisService;
@@ -306,8 +308,13 @@ public class DasIndicationService extends AbstractLogisService implements IDasIn
 	public void restoreIndicatorsOn(JobBatch batch, String equipZone) {
 		IIndRequestService indReqSvc = this.getIndicatorRequestService(batch.getId());
 		List<JobInstance> jobList = this.searchJobsForIndOn(batch, ValueUtil.newMap("status,stationCd", LogisConstants.JOB_STATUS_PICKING, equipZone));
+		// 1. 재점등
 		Map<String, List<IIndOnInfo>> indOnForPickList = RuntimeIndServiceUtil.buildIndOnList(false, batch, jobList, true);
 		indReqSvc.requestIndListOn(batch.getDomainId(), batch.getStageCd(), batch.getJobType(), GwConstants.IND_ACTION_TYPE_PICK, indOnForPickList);
+		// 2. 재작업 기록
+		if(ValueUtil.isNotEmpty(jobList)) {
+			OperatoDasServiceUtil.createReworkHistories(batch, jobList, Rework.REWORK_TYPE_RELIGHT);
+		}
 	}
 
 	@Override
@@ -322,8 +329,13 @@ public class DasIndicationService extends AbstractLogisService implements IDasIn
 	public void restoreIndicatorsOn(JobBatch batch, int inputSeq, String equipZone, String mode) {
 		IIndRequestService indReqSvc = this.getIndicatorRequestService(batch.getId());
 		List<JobInstance> jobList = this.searchJobsForIndOn(batch, ValueUtil.newMap("status,inputSeq,stationCd", LogisConstants.JOB_STATUS_PICKING, inputSeq, equipZone));
+		// 1. 재점등
 		Map<String, List<IIndOnInfo>> indOnForPickList = RuntimeIndServiceUtil.buildIndOnList(false, batch, jobList, true);
 		indReqSvc.requestIndListOn(batch.getDomainId(), batch.getStageCd(), batch.getJobType(), GwConstants.IND_ACTION_TYPE_PICK, indOnForPickList);
+		// 2. 재작업 기록
+		if(ValueUtil.isNotEmpty(jobList)) {
+			OperatoDasServiceUtil.createReworkHistories(batch, jobList, Rework.REWORK_TYPE_RELIGHT);
+		}
 	}
 
 	@Override

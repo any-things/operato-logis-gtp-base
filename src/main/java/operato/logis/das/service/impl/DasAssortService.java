@@ -1,5 +1,6 @@
 package operato.logis.das.service.impl;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 import operato.logis.das.query.store.DasQueryStore;
 import operato.logis.das.service.api.IDasIndicationService;
 import operato.logis.das.service.util.DasBatchJobConfigUtil;
+import operato.logis.das.service.util.OperatoDasServiceUtil;
 import xyz.anythings.base.LogisCodeConstants;
 import xyz.anythings.base.LogisConstants;
 import xyz.anythings.base.entity.BoxPack;
@@ -22,6 +24,7 @@ import xyz.anythings.base.entity.JobInput;
 import xyz.anythings.base.entity.JobInstance;
 import xyz.anythings.base.entity.Order;
 import xyz.anythings.base.entity.Rack;
+import xyz.anythings.base.entity.Rework;
 import xyz.anythings.base.entity.SKU;
 import xyz.anythings.base.entity.WorkCell;
 import xyz.anythings.base.event.ICategorizeEvent;
@@ -833,22 +836,7 @@ public class DasAssortService extends AbstractClassificationService implements I
 		
 		// 4. 검수 모드로 표시기 점등
 		RuntimeIndServiceUtil.indOnByInspectJobList(batch, doneJobList);
-		/*if(ValueUtil.isNotEmpty(doneJobList)) {
-			List<JobInstance> sliceDoneJobList = new ArrayList<JobInstance>();
-			for(JobInstance job : doneJobList) {
-				sliceDoneJobList.add(job);
-				
-				if(sliceDoneJobList.size() >= 10) {
-					RuntimeIndServiceUtil.indOnByInspectJobList(batch, sliceDoneJobList);
-					sliceDoneJobList.clear();
-					ThreadUtil.sleep(500);
-				}
-			}
-			
-			if(!sliceDoneJobList.isEmpty()) {
-				RuntimeIndServiceUtil.indOnByInspectJobList(batch, sliceDoneJobList);
-			}
-		}*/
+		String skuNm = ValueUtil.isNotEmpty(doneJobList) ? doneJobList.get(0).getSkuNm() : todoJobList.get(0).getSkuNm();
 		
 		// 5. picking 모드로 표시기 점등
 		if(ValueUtil.isNotEmpty(todoJobList)) {
@@ -858,6 +846,12 @@ public class DasAssortService extends AbstractClassificationService implements I
 				job.setPickingQty(job.getPickQty());
 			}
 			indSvc.indicatorsOn(batch, false, todoJobList);
+			
+			// 5.2 재작업 기록
+			OperatoDasServiceUtil.createReworkHistories(batch, todoJobList, Rework.REWORK_TYPE_INSPECTION);
+		} else {
+			// 5.2 재작업 기록
+			OperatoDasServiceUtil.createReworkHistories(batch, skuCd, skuNm, new ArrayList<JobInstance>(1), Rework.REWORK_TYPE_INSPECTION);
 		}
 		
 		// 6. PDA, Tablet, KIOSK 등에 표시할 작업 리스트 리턴
@@ -998,30 +992,6 @@ public class DasAssortService extends AbstractClassificationService implements I
 		
 		// 5. 표시기 점등
 		this.serviceDispatcher.getIndicationService(batch).indicatorsOn(batch, false, indJobList);
-		
-		/*if(indJobList.size() <= 10) {
-			// 5. 10개 이하인 경우 한꺼번에 점등
-			this.serviceDispatcher.getIndicationService(batch).indicatorsOn(batch, false, indJobList);
-			
-		} else {
-			// 6. 10개 이상인 경우 10개씩 쪼개서 점등
-			IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
-			List<JobInstance> sliceIndJobList = new ArrayList<JobInstance>();
-			
-			for(JobInstance job : indJobList) {
-				sliceIndJobList.add(job);
-				
-				if(sliceIndJobList.size() >= 10) {
-					indSvc.indicatorsOn(batch, false, sliceIndJobList);
-					ThreadUtil.sleep(500);
-					sliceIndJobList.clear();
-				}
-			}
-			
-			if(!sliceIndJobList.isEmpty()) {
-				indSvc.indicatorsOn(batch, false, sliceIndJobList);
-			}
-		}*/
 	}
 
 	/**
