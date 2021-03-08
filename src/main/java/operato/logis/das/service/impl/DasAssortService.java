@@ -170,27 +170,29 @@ public class DasAssortService extends AbstractClassificationService implements I
 	 */
 	public void restoreMpiOn(JobBatch batch, Gateway gw, String rackCd) {
 		if(ValueUtil.isEqual(batch.getStatus(), JobBatch.STATUS_RUNNING)) {
-			Long domainId = batch.getDomainId();
+			boolean isIndicatorsRestoreWhenGwReboot = DasBatchJobConfigUtil.isIndicatorsRestoreWhenGwReboot(batch);
 			
-			// 1. 배치, 게이트웨이에 걸린 모든 진행 중이던 작업 리스트를 조회 ...
-			IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
-			Map<String, Object> condition = ValueUtil.newMap("domainId,batchId,equipCd,gwCd,status,stageCd,jobType", domainId, batch.getId(), rackCd, gw.getGwCd(), LogisConstants.JOB_STATUS_PICKING, batch.getStageCd(), batch.getJobType());
-			IJobStatusService jobStatusSvc = this.serviceDispatcher.getJobStatusService(batch);
-			List<JobInstance> jobList = jobStatusSvc.searchPickingJobList(batch, condition);
-
-			// 2. 작업 중이던 작업 표시기 재점등 ...
-			indSvc.indicatorsOn(batch, true, jobList);
-			
-			// 3. 배치, 게이트웨이에 걸린 셀 중에 ENDING, ENDED 상태인 셀을 모두 조회
-			condition.put("gwPath", gw.getGwNm());
-			condition.put("indStatuses", LogisConstants.CELL_JOB_STATUS_END_LIST);
-			String sql = this.dasQueryStore.getRestoreEndIndicators();
-			jobList = this.queryManager.selectListBySql(sql, condition, JobInstance.class, 0, 0);
-			
-			// 4. ENDING, ENDED 조회한 정보로 모두 점등
-			if(ValueUtil.isNotEmpty(jobList)) {
-				for(JobInstance job : jobList) {
-					indSvc.indicatorOnForPickEnd(job, ValueUtil.isEqualIgnoreCase(job.getStatus(), LogisConstants.CELL_JOB_STATUS_ENDED));
+			if(isIndicatorsRestoreWhenGwReboot) {
+				// 1. 배치, 게이트웨이에 걸린 모든 진행 중이던 작업 리스트를 조회 ...
+				IIndicationService indSvc = this.serviceDispatcher.getIndicationService(batch);
+				Map<String, Object> condition = ValueUtil.newMap("domainId,batchId,equipCd,gwCd,status,stageCd,jobType", batch.getDomainId(), batch.getId(), rackCd, gw.getGwCd(), LogisConstants.JOB_STATUS_PICKING, batch.getStageCd(), batch.getJobType());
+				IJobStatusService jobStatusSvc = this.serviceDispatcher.getJobStatusService(batch);
+				List<JobInstance> jobList = jobStatusSvc.searchPickingJobList(batch, condition);
+				
+				// 2. 작업 중이던 작업 표시기 재점등 ...
+				indSvc.indicatorsOn(batch, true, jobList);
+				
+				// 3. 배치, 게이트웨이에 걸린 셀 중에 ENDING, ENDED 상태인 셀을 모두 조회
+				condition.put("gwPath", gw.getGwNm());
+				condition.put("indStatuses", LogisConstants.CELL_JOB_STATUS_END_LIST);
+				String sql = this.dasQueryStore.getRestoreEndIndicators();
+				jobList = this.queryManager.selectListBySql(sql, condition, JobInstance.class, 0, 0);
+				
+				// 4. ENDING, ENDED 조회한 정보로 모두 점등
+				if(ValueUtil.isNotEmpty(jobList)) {
+					for(JobInstance job : jobList) {
+						indSvc.indicatorOnForPickEnd(job, ValueUtil.isEqualIgnoreCase(job.getStatus(), LogisConstants.CELL_JOB_STATUS_ENDED));
+					}
 				}
 			}
 		}
